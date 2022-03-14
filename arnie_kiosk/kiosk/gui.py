@@ -30,6 +30,12 @@ from PySide6.QtMultimediaWidgets import (
 import cv2
 
 
+PICTURE_VIEW_WIDTH = 320
+PICTURE_VIEW_HEIGHT = 240
+TITLE_FONT_SIZE = 16
+BODY_FONT_SIZE = 12
+BUTTON_HEIGHT = 48
+
 class GuiSignals(QObject):
     setPage = Signal(int)
     setNewUserInfo = Signal(str,str,str)
@@ -66,7 +72,7 @@ class CameraThread(QThread):
             img = QImage(frame.data, w, h, ch*w, QImage.Format_RGB888)
 
             #size down img
-            img = img.scaled(640, 480, Qt.KeepAspectRatio)
+            img = img.scaled(PICTURE_VIEW_WIDTH, PICTURE_VIEW_HEIGHT, Qt.KeepAspectRatio)
 
             #emit img
             self.updateFrame.emit(img)
@@ -91,13 +97,13 @@ class IdlePage(QWidget):
 
         self.title_text = QLabel("ArnieBot - The Original Iced Tea + Lemonade\nBeverage Service System")
         font = self.title_text.font()
-        font.setPointSize(32)
+        font.setPointSize(TITLE_FONT_SIZE)
         self.title_text.setFont(font)
         self.title_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
         self.prompt_text = QLabel("Touch anywhere to begin")
         font = self.prompt_text.font()
-        font.setPointSize(24)
+        font.setPointSize(BODY_FONT_SIZE)
         self.prompt_text.setFont(font)
         self.prompt_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
@@ -133,27 +139,29 @@ class RegistrationPage(QWidget):
 
         self.greeting_text = QLabel("Welcome new user!\nPlease enter your name\nand take a profile picture")
         font = self.greeting_text.font()
-        font.setPointSize(16)
+        font.setPointSize(BODY_FONT_SIZE)
         self.greeting_text.setFont(font)
         self.greeting_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
         self.first_name_label = QLabel("First Name:")
         self.first_name_label.setAlignment(Qt.AlignLeft|Qt.AlignBottom)
-        self.first_name_label.setFixedHeight(32)
+        self.first_name_label.setFixedHeight(24)
         self.first_name_edit = QLineEdit("Arnold")
-        self.first_name_edit.setFixedWidth(240)
+        self.first_name_edit.setFixedWidth(180)
 
         self.last_name_label = QLabel("Last Name:")
         self.last_name_label.setAlignment(Qt.AlignLeft|Qt.AlignBottom)
-        self.last_name_label.setFixedHeight(32)
+        self.last_name_label.setFixedHeight(24)
         self.last_name_edit = QLineEdit("Palmer")
-        self.last_name_edit.setFixedWidth(240)
+        self.last_name_edit.setFixedWidth(180)
 
         self.spacer_label = QLabel("")
     
         self.take_picture_button = QPushButton("Take Picture")
+        self.take_picture_button.setFixedHeight(BUTTON_HEIGHT)
     
         self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.setFixedHeight(BUTTON_HEIGHT)
 
         self.left_layout = QVBoxLayout()
         self.left_layout.addWidget(self.greeting_text)
@@ -166,7 +174,7 @@ class RegistrationPage(QWidget):
         self.left_layout.addWidget(self.cancel_button)
 
         self.camera_view_label = QLabel(self)
-        self.camera_view_label.setFixedSize(640, 480) #TODO: unhardcode view size! too big for rpi
+        self.camera_view_label.setFixedSize(PICTURE_VIEW_WIDTH, PICTURE_VIEW_HEIGHT)
 
         self.camera_view_img = QImage()
 
@@ -224,15 +232,18 @@ class ConfirmationPage(QWidget):
 
         self._confirm_text = QLabel("Does this look OK?")
         font = self._confirm_text.font()
-        font.setPointSize(18)
+        font.setPointSize(BODY_FONT_SIZE)
         self._confirm_text.setFont(font)
         self._confirm_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
         self._approve_button = QPushButton("Approve")
+        self._approve_button.setFixedHeight(BUTTON_HEIGHT)
         self._approve_button.clicked.connect(self.approve)
         self._retake_button = QPushButton("Retake")
+        self._retake_button.setFixedHeight(BUTTON_HEIGHT)
         self._retake_button.clicked.connect(self.retake)
         self._cancel_button = QPushButton("Cancel")
+        self._cancel_button.setFixedHeight(BUTTON_HEIGHT)
         self._cancel_button.clicked.connect(self.cancel)
 
         left_layout = QVBoxLayout()
@@ -244,16 +255,16 @@ class ConfirmationPage(QWidget):
         main_layout.addLayout(left_layout)
 
         self._profile_picture = QLabel(self)
-        self._profile_picture.setFixedSize(640, 480)
+        self._profile_picture.setFixedSize(PICTURE_VIEW_WIDTH, PICTURE_VIEW_HEIGHT)
         
         self._first_name = "NOINIT_FIRST"
         self._last_name = "NOINIT_LAST"
         self._profile_name = QLabel(f"Name: '{self._first_name} {self._last_name}'")
         font = self._profile_name.font()
-        font.setPointSize(18)
+        font.setPointSize(BODY_FONT_SIZE)
         self._profile_name.setFont(font)
         self._profile_name.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
-        self._profile_name.setFixedHeight(100)
+        self._profile_name.setFixedHeight(32)
 
         right_layout = QVBoxLayout()
 
