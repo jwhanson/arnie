@@ -11,7 +11,7 @@ CAMERA_DEVICE_ID = 0
 def main():
     app = QApplication()
     window = MainWindow()
-    window.showMaximized()
+    window.showFullScreen()
     app.exec()
 
 
