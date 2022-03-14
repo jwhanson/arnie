@@ -6,7 +6,8 @@ from PySide6.QtCore import (
     Slot,
     QStandardPaths,
     QObject,
-    Signal
+    Signal,
+    QThread
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -19,19 +20,14 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QLineEdit
 )
-from PySide6.QtMultimedia import (
-    QCamera,
-    QImageCapture,
-    QMediaCaptureSession,
-    QMediaDevices,
-
-)
 from PySide6.QtGui import (
+    QImage,
     QPixmap
 )
 from PySide6.QtMultimediaWidgets import (
     QVideoWidget
 )
+import cv2
 
 
 class GuiSignals(QObject):
@@ -39,12 +35,57 @@ class GuiSignals(QObject):
     setNewUserInfo = Signal(str,str,str)
 
 
+class UserEntry(object):
+    def __init__(self, first_name, last_name, profile_picture):
+        self.first_name = first_name
+        self.last_name = last_name
+        self.profile_picture = profile_picture
+
+
+
+class CameraThread(QThread):
+    updateFrame = Signal(QImage)
+
+    def __init__(self):
+        QThread.__init__(self)
+
+    def run(self):
+        self.cap = cv2.VideoCapture(0)
+        self.keep_alive = True
+
+        while self.keep_alive:
+            ret, frame = self.cap.read()
+            if not ret:
+                continue
+
+            #transform frame
+            frame = cv2.flip(frame, 1)
+
+            #convert frame to img
+            h, w, ch = frame.shape
+            img = QImage(frame.data, w, h, ch*w, QImage.Format_RGB888)
+
+            #size down img
+            img = img.scaled(640, 480, Qt.KeepAspectRatio)
+
+            #emit img
+            self.updateFrame.emit(img)
+
+        self.cap.release()
+        cv2.destroyAllWindows()
+
+    def quit(self):
+        self.keep_alive = False
+
+
 class IdlePage(QWidget):
     """PySide6 Widget implementing the splash page for Arnie."""
-    def __init__(self, gui_signals):
+    leaveIdle = Signal()
+
+    def __init__(self, enterPageSignal):
         super().__init__()
 
-        self.gui_signals = gui_signals
+        enterPageSignal.connect(self.enter_page)
 
         layout = QVBoxLayout()
 
@@ -64,18 +105,28 @@ class IdlePage(QWidget):
         layout.addWidget(self.prompt_text)
         self.setLayout(layout)
     
+    def enter_page(self):
+        print('entering idle page')
+
+    def leave_page(self):
+        print('leaving idle page')
+
     def mousePressEvent(self, event):
         print("click...")
-        self.gui_signals.setPage.emit(1)
-
+        self.leave_page()
+        self.leaveIdle.emit()
 
 
 class RegistrationPage(QWidget):
     """PySide6 Widget implementing the user registration page for Arnie."""
-    def __init__(self, gui_signals):
+    
+    cancelRegistration = Signal()
+    setRegistrationDetails = Signal(str,str,QImage)
+
+    def __init__(self, enterPageSignal):
         super().__init__()
 
-        self.gui_signals = gui_signals
+        enterPageSignal.connect(self.enter_registration)
 
         self.pictures_location = QStandardPaths.writableLocation(QStandardPaths.PicturesLocation)
         self.picture_filename = f"{self.pictures_location}/tmp.jpg"
@@ -114,81 +165,60 @@ class RegistrationPage(QWidget):
         self.left_layout.addWidget(self.take_picture_button)
         self.left_layout.addWidget(self.cancel_button)
 
-        self.viewfinder = QVideoWidget()
+        self.camera_view_label = QLabel(self)
+        self.camera_view_label.setFixedSize(640, 480) #TODO: unhardcode view size! too big for rpi
 
-        available_cameras = QMediaDevices.videoInputs()
-        if available_cameras:
-            self._camera_info = available_cameras[0]
+        self.camera_view_img = QImage()
 
-            self._camera = QCamera(self._camera_info)
-            self._camera.errorOccurred.connect(self._camera_error)
-
-            self._image_capture = QImageCapture(self._camera)
-            # self._image_capture.imageCaptured.connect(self.image_captured)
-            self._image_capture.imageSaved.connect(self.image_saved)
-            self._image_capture.errorOccurred.connect(self._capture_error)
-
-            self._capture_session = QMediaCaptureSession()
-            self._capture_session.setCamera(self._camera)
-            self._capture_session.setImageCapture(self._image_capture)
+        self.camera_thread = CameraThread()
+        self.camera_thread.updateFrame.connect(self.set_image)
 
         main_layout = QHBoxLayout()
         main_layout.addLayout(self.left_layout)
-        main_layout.addWidget(self.viewfinder)
+        main_layout.addWidget(self.camera_view_label)
         self.setLayout(main_layout)
 
         self.take_picture_button.clicked.connect(self.take_picture)
         self.cancel_button.clicked.connect(self.cancel)
 
-        if self._camera and self._camera.error() == QCamera.NoError:
-            # name = self._camera_info.description()
-            # self.setWindowTitle(f"PySide6 Camera Example ({name})")
-            # self.show_status_message(f"Starting: '{name}'")
+    def enter_registration(self):
+        print("entering reg page")
+        self.camera_view_label.clear()
+        self.camera_thread.start()
 
-            self._capture_session.setVideoOutput(self.viewfinder)
-            self._camera.start()
-        else:
-            self.setWindowTitle("PySide6 Camera Example")
-            self.show_status_message("Camera unavailable")
+    def leave_registration(self):
+        print("leaving reg page")
+        self.camera_thread.quit()
+
+    @Slot(QImage)
+    def set_image(self, image):
+        self.camera_view_img = image
+        self.camera_view_label.setPixmap(QPixmap.fromImage(image))
     
     @Slot()
     def take_picture(self):
         print("taking picture...")
-        self._image_capture.captureToFile(self.picture_filename)
-
-    @Slot(int, str)
-    def image_saved(self, id, fileName):
         first_name = self.first_name_edit.text()
         last_name = self.last_name_edit.text()
-        self.gui_signals.setNewUserInfo.emit(first_name, last_name, self.picture_filename)
-        self.gui_signals.setPage.emit(2)
-
-    def closeEvent(self, event):
-        print("closing reg page")
-        if self._camera and self._camera.isActive():
-            self._camera.stop()
-
-    @Slot(int, QImageCapture.Error, str)
-    def _capture_error(self, id, error, error_string):
-        print(error_string, file=sys.stderr)
-
-    @Slot(QCamera.Error, str)
-    def _camera_error(self, error, error_string):
-        print(error_string, file=sys.stderr)
+        
+        self.leave_registration()
+        self.setRegistrationDetails.emit(first_name, last_name, self.camera_view_img)
 
     def cancel(self):
-        if self._camera and self._camera.isActive():
-            self._camera.stop()
-        self.gui_signals.setPage.emit(0)
+        self.leave_registration()
+        self.cancelRegistration.emit()
 
 
 class ConfirmationPage(QWidget):
-    def __init__(self, gui_signals):
+
+    cancelRegistration = Signal()
+    retakeProfile = Signal()
+    confirmUserInfo = Signal()
+
+    def __init__(self, enterPageSignal):
         super().__init__()
 
-        self.gui_signals = gui_signals
-
-        self.gui_signals.setNewUserInfo.connect(self.update_preview)
+        enterPageSignal.connect(self.enter_confirmation)
 
         main_layout = QHBoxLayout()
 
@@ -213,9 +243,8 @@ class ConfirmationPage(QWidget):
 
         main_layout.addLayout(left_layout)
 
-        self._profile_picture = QLabel()
-        pictures_location = QStandardPaths.writableLocation(QStandardPaths.PicturesLocation)
-        self._profile_picture.setPixmap(QPixmap(f"{pictures_location}/tmp.jpg")) #TODO: init better
+        self._profile_picture = QLabel(self)
+        self._profile_picture.setFixedSize(640, 480)
         
         self._first_name = "NOINIT_FIRST"
         self._last_name = "NOINIT_LAST"
@@ -234,6 +263,20 @@ class ConfirmationPage(QWidget):
         main_layout.addLayout(right_layout)
         self.setLayout(main_layout)
 
+    @Slot(str,str,QImage)
+    def enter_confirmation(self, first_name, last_name, profile_picture):
+        print("entering conf page")
+        self._profile_picture.clear()
+
+        self._first_name = first_name
+        self._last_name = last_name
+        self._profile_name.setText(f"Name: '{self._first_name} {self._last_name}'")
+
+        self._profile_picture.setPixmap(QPixmap.fromImage(profile_picture))
+
+    def leave_confirmation(self):
+        print("leaving conf page")
+
     @Slot(str,str,str)
     def update_preview(self, first_name, last_name, picture_filename):
         self._first_name = first_name
@@ -247,47 +290,61 @@ class ConfirmationPage(QWidget):
         print("Approved!")
 
     def retake(self):
-        self.gui_signals.setPage.emit(1)
-    
+        self.retakeProfile.emit()
+
     def cancel(self):
-        self.gui_signals.setPage.emit(0)
+        self.cancelRegistration.emit()
 
 
 class MainWindow(QMainWindow):
+    enterIdle = Signal()
+    enterRegistration = Signal()
+    enterConfirmation = Signal(str,str,QImage)
+
     def __init__(self):
         super().__init__()
 
         self.setWindowTitle("Arnie Kiosk")
 
-        self.gui_signals = GuiSignals()
-        self.gui_signals.setPage.connect(self.set_page)
-
         self._stacked_widget = QStackedWidget()
         self.setCentralWidget(self._stacked_widget)
 
-        self._idle_page = IdlePage(self.gui_signals)
+        self._idle_page = IdlePage(self.enterIdle)
         self._stacked_widget.addWidget(self._idle_page)
+        self._idle_page.leaveIdle.connect(self.leave_idle)
 
-        self._registration_page = RegistrationPage(self.gui_signals)
+        self._registration_page = RegistrationPage(self.enterRegistration)
         self._stacked_widget.addWidget(self._registration_page)
+        self._registration_page.cancelRegistration.connect(self.cancel_registration)
+        self._registration_page.setRegistrationDetails.connect(self.intake_user_reg)
 
-        self._confirmation_page = ConfirmationPage(self.gui_signals)
+        self._confirmation_page = ConfirmationPage(self.enterConfirmation)
         self._stacked_widget.addWidget(self._confirmation_page)
+        self._confirmation_page.cancelRegistration.connect(self.cancel_registration)
+        self._confirmation_page.retakeProfile.connect(self.retake_user_info)
 
+    def leave_idle(self):
+        #TODO: add logic here to select based on recoged/unrecoged face!
+        #TODO: need better scheme for indexing pages in __init__
+        self._stacked_widget.setCurrentIndex(1) #hardcoding reg page index
+        self.enterRegistration.emit()
+    
+    def cancel_registration(self):
+        self._stacked_widget.setCurrentIndex(0) #TODO: fix widget hardcode
+        self.enterIdle.emit()
 
-    def closeEvent(self, event):
-        print('closing MainWindow')
-        self._registration_page.closeEvent(event)
+    @Slot(str,str,QImage)
+    def intake_user_reg(self, first_name, last_name, profile_picture):
+        self._stacked_widget.setCurrentIndex(2)
+        self.enterConfirmation.emit(first_name, last_name, profile_picture)
 
-    @Slot(int)
-    def set_page(self, index):
-        print(f"trying to switch to index {index}")
-        self._confirmation_page.update_preview
-        self._stacked_widget.setCurrentIndex(index)
+    def retake_user_info(self):
+        self._stacked_widget.setCurrentIndex(1)
+        self.enterRegistration.emit()
 
 
 if __name__ == "__main__":
     app = QApplication()
     window = MainWindow()
-    window.showMaximized()
+    window.show()
     sys.exit(app.exec())
