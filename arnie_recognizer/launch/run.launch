@@ -1,0 +1,6 @@
+<launch>
+    <node
+        name="recognizer"
+        pkg="arnie_recognizer"
+        type="$(find arnie_recognizer)/src/recognizer.py"/>
+</launch>

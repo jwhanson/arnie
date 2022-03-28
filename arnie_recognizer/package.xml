@@ -1,0 +1,16 @@
+<package format="2">
+  <name>arnie_recognizer</name>
+  <version>1.0.0</version>
+  <description>
+    <p>Headless Face Recog ROS Package for Arnie</p>
+    <p>TODO: add some details here</p>
+  </description>
+  <author>TODO</author>
+  <maintainer email="TODO@email.com" />
+  <license>BSD</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roslaunch</depend>
+  <export>
+    <architecture_independent />
+  </export>
+</package>
