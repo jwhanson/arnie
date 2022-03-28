@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import sys
-from turtle import right
 from PySide6.QtCore import (
     Qt,
     Slot,
@@ -23,9 +22,6 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import (
     QImage,
     QPixmap
-)
-from PySide6.QtMultimediaWidgets import (
-    QVideoWidget
 )
 import cv2
 
