@@ -1,32 +1,25 @@
 #include <Servo.h>
 //#include <Ramp.h>
-#define sw1 2
-#define sw2 7
-#define servo0pin 3
-#define servo1pin 5
-#define servo2pin 6
-#define servo3pin 9
-#define relay1 10
-#define relay2 11
-#define relay3 12
-#define relay4 13
+#define sw1 2 //pin for switch on end effector
+#define sw2 7 //pin for switch in receive plate
+#define servo0pin 3 //base servo pin
+#define servo1pin 5 //joint 1 servo pin
+#define servo2pin 6 //joint 2 servo pin
+#define servo3pin 9 //joint 3 servo pin
+#define relay1 10 //arduino digital pin
+#define relay2 11 //arduino digital pin
+#define relay3 12 //arduino digital pin
+#define relay4 13 //arduino digital pin
 
-Servo servo0; Servo servo1; Servo servo2; Servo servo3;
-//ramp ramp0;   ramp ramp1;   ramp ramp2;   ramp ramp3;
-//
-//int step0;  int step1;  int step2;  int step3;
-//int pos0;   int pos1;   int pos2;   int pos3;
-//int gol0;   int gol1;   int gol2;   int gol3;
-//int d0;     int d1;     int d2;     int d3;
-//int servo3level;
+Servo servo0; Servo servo1; Servo servo2; Servo servo3; //create servo objects for each servo for the library
+
 int getCup[] = {0,40,180,40}; // these are good positions to receive the cup
-long t = 2500;
-int dT = 50;
-int N; // = 50; //t/dT;
-int pos = 0;    // variable to store the servo position
+//long t = 2500;
+//int dT = 50;
+//int N; // = 50; //t/dT;
+//int pos = 0;    // variable to store the servo position
 
-bool sw1State;
-bool sw2State;
+bool sw1State;  bool sw2State; //stores whether switch is depressed or not
 
 int goal0 = 90;       int goal1 = 90;       int goal2=90;         int goal3=90;
 float goal0smooth=90; float goal1smooth=90; float goal2smooth=90; float goal3smooth=90;
@@ -36,8 +29,8 @@ float ratio2 = 0.97; //ratio of previous position
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(9600);
-  pinMode(2, INPUT);
+  Serial.begin(9600); //for debug
+  pinMode(sw1, INPUT); pinMode(sw2, INPUT); //tell arduino the switches are inputs
   pinMode(relay1,OUTPUT);   pinMode(relay2,OUTPUT);   pinMode(relay3,OUTPUT);   pinMode(relay4,OUTPUT);
   servo0.attach(servo0pin); servo1.attach(servo1pin); servo2.attach(servo2pin); servo3.attach(servo3pin);
   digitalWrite(relay1,LOW); digitalWrite(relay2,LOW); digitalWrite(relay3,LOW); digitalWrite(relay4,LOW);
@@ -51,7 +44,8 @@ void loop() {
   sw2State = digitalRead(sw2);
   Serial.println(sw2State);
 
-  if(!sw1State){
+  if(!sw1State){ //if end effector button is not depressed
+    // move to "receive cup" pose
     goal0 = 0;
     goal1 = 40;
     goal2 = 180;
@@ -69,9 +63,9 @@ void loop() {
   goal1smooth = (goal1 * ratio1) + (goal1prev * ratio2);
   goal2smooth = (goal2 * ratio1) + (goal2prev * ratio2);
   goal3smooth = (goal3 * ratio1) + (goal3prev * ratio2);
-//  Serial.print(goal0);
-//  Serial.print(" , ");
-//  Serial.println(goal0smooth);
+  //  Serial.print(goal0);
+  //  Serial.print(" , ");
+  //  Serial.println(goal0smooth);
   goal0prev = goal0smooth;
   goal1prev = goal1smooth;
   goal2prev = goal2smooth;
