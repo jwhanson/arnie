@@ -3,23 +3,18 @@
 #include <std_msgs/UInt16.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Empty.h>
-
-ros::NodeHandle nh;
-
 #define relay1 4 //arduino digital pin
 #define relay2 5 //arduino digital pin
 #define relay3 6 //arduino digital pin
 #define relay4 7 //arduino digital pin
+bool done = false; //are we done dispensing the drink?
 
-bool done = false; //are we done dispensing the drink
-
+ros::NodeHandle nh;
 void messageCb(const std_msgs::UInt16& toggle_msg){
   done = false;
   dispense(toggle_msg.data);
-//  relayPulse(1000);
 }
 ros::Subscriber<std_msgs::UInt16> sub("dispense_drink", messageCb);
-
 std_msgs::Bool srved_msg;
 ros::Publisher served("served", &srved_msg);
 
@@ -31,28 +26,13 @@ void setup() {
   nh.subscribe(sub);
 }
 
-
-
 void loop() {
   srved_msg.data = done;
   served.publish( &srved_msg );
   nh.spinOnce();
   delay(500);
-  //relayPulse(1000);
 }
 
-void relayPulse(int wait){
-  digitalWrite(relay1,LOW);
-  digitalWrite(relay2,LOW);
-  digitalWrite(relay3,LOW);
-  digitalWrite(relay4,LOW);
-  delay(wait);
-  digitalWrite(relay1,HIGH);
-  digitalWrite(relay2,HIGH);
-  digitalWrite(relay3,HIGH);
-  digitalWrite(relay4,HIGH);
-  delay(wait);
-}
 void dispense(int drinkNum){
   if(drinkNum==1){
     digitalWrite(relay1,LOW);
@@ -147,4 +127,17 @@ void dispense(int drinkNum){
   }
   else{done = false;}
   digitalWrite(relay1,HIGH); digitalWrite(relay2,HIGH); digitalWrite(relay3,HIGH); digitalWrite(relay4,HIGH);
+}
+
+void relayPulse(int wait){
+  digitalWrite(relay1,LOW);
+  digitalWrite(relay2,LOW);
+  digitalWrite(relay3,LOW);
+  digitalWrite(relay4,LOW);
+  delay(wait);
+  digitalWrite(relay1,HIGH);
+  digitalWrite(relay2,HIGH);
+  digitalWrite(relay3,HIGH);
+  digitalWrite(relay4,HIGH);
+  delay(wait);
 }
