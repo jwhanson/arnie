@@ -12,7 +12,7 @@ def main():
     app = QApplication()
     window = MainWindow()
     window.showFullScreen()
-    app.exec()
+    app.exec_()
 
 
 if __name__ == "__main__":
