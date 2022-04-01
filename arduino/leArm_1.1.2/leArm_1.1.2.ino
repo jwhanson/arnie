@@ -1,3 +1,6 @@
+
+#include <ros.h>
+#include <std_msgs/String.h> //for compatibility with ROS
 #include <Servo.h>
 //#include <Ramp.h>
 #define sw1 2 //pin for switch on end effector
