@@ -1,15 +1,44 @@
+#include <ros.h>
+#include <std_msgs/String.h>
+#include <std_msgs/UInt16.h>
+#include <std_msgs/Bool.h>
+#include <std_msgs/Empty.h>
+
+ros::NodeHandle nh;
+
 #define relay1 4 //arduino digital pin
 #define relay2 5 //arduino digital pin
 #define relay3 6 //arduino digital pin
 #define relay4 7 //arduino digital pin
 
+bool done = false; //are we done dispensing the drink
+
+void messageCb(const std_msgs::UInt16& toggle_msg){
+  done = false;
+  dispense(toggle_msg.data);
+//  relayPulse(1000);
+}
+ros::Subscriber<std_msgs::UInt16> sub("dispense_drink", messageCb);
+
+std_msgs::Bool srved_msg;
+ros::Publisher served("served", &srved_msg);
+
 void setup() {
   pinMode(relay1,OUTPUT);   pinMode(relay2,OUTPUT);   pinMode(relay3,OUTPUT);   pinMode(relay4,OUTPUT);
-  digitalWrite(relay1,LOW); digitalWrite(relay2,LOW); digitalWrite(relay3,LOW); digitalWrite(relay4,LOW);
+  digitalWrite(relay1,HIGH); digitalWrite(relay2,HIGH); digitalWrite(relay3,HIGH); digitalWrite(relay4,HIGH);
+  nh.initNode();
+  nh.advertise(served);
+  nh.subscribe(sub);
 }
 
+
+
 void loop() {
-  relayPulse(1000);
+  srved_msg.data = done;
+  served.publish( &srved_msg );
+  nh.spinOnce();
+  delay(500);
+  //relayPulse(1000);
 }
 
 void relayPulse(int wait){
@@ -23,4 +52,99 @@ void relayPulse(int wait){
   digitalWrite(relay3,HIGH);
   digitalWrite(relay4,HIGH);
   delay(wait);
+}
+void dispense(int drinkNum){
+  if(drinkNum==1){
+    digitalWrite(relay1,LOW);
+    digitalWrite(relay2,LOW);
+    digitalWrite(relay3,LOW);
+    digitalWrite(relay4,LOW);
+    delay(200);
+    digitalWrite(relay1,HIGH);
+    digitalWrite(relay2,HIGH);
+    digitalWrite(relay3,HIGH);
+    digitalWrite(relay4,HIGH);
+    delay(200);
+    digitalWrite(relay1,LOW);
+    digitalWrite(relay2,LOW);
+    digitalWrite(relay3,LOW);
+    digitalWrite(relay4,LOW);
+    delay(200);
+    digitalWrite(relay1,HIGH);
+    digitalWrite(relay2,HIGH);
+    digitalWrite(relay3,HIGH);
+    digitalWrite(relay4,HIGH);
+    delay(200);
+    digitalWrite(relay1,LOW);
+    digitalWrite(relay2,LOW);
+    digitalWrite(relay3,LOW);
+    digitalWrite(relay4,LOW);
+    delay(200);
+    digitalWrite(relay1,HIGH);
+    digitalWrite(relay2,HIGH);
+    digitalWrite(relay3,HIGH);
+    digitalWrite(relay4,HIGH);
+    delay(200);
+    done = true;
+  }
+  else if(drinkNum == 2){
+    digitalWrite(relay1,LOW);
+    digitalWrite(relay2,LOW);
+    digitalWrite(relay3,HIGH);
+    digitalWrite(relay4,HIGH);
+    delay(1000);
+    digitalWrite(relay1,HIGH);
+    digitalWrite(relay2,HIGH);
+    digitalWrite(relay3,LOW);
+    digitalWrite(relay4,LOW);
+    delay(1000);
+    digitalWrite(relay1,LOW);
+    digitalWrite(relay2,LOW);
+    digitalWrite(relay3,HIGH);
+    digitalWrite(relay4,HIGH);
+    delay(1000);
+    digitalWrite(relay1,HIGH);
+    digitalWrite(relay2,HIGH);
+    digitalWrite(relay3,LOW);
+    digitalWrite(relay4,LOW);
+    delay(1000);
+    done = true;
+  }
+  else if(drinkNum == 3){
+    digitalWrite(relay1,LOW);
+    delay(500);
+    digitalWrite(relay1,HIGH);
+    delay(500);
+    digitalWrite(relay2,LOW);
+    delay(500);
+    digitalWrite(relay2,HIGH);
+    delay(500);
+    digitalWrite(relay3,LOW);
+    delay(500);
+    digitalWrite(relay3,HIGH);
+    delay(500);
+    digitalWrite(relay4,LOW);
+    delay(500);
+    digitalWrite(relay4,HIGH);
+    delay(500);
+    done = true;
+  }
+    else if(drinkNum == 4){
+    digitalWrite(relay1,LOW);
+    delay(500);
+    digitalWrite(relay2,LOW);
+    digitalWrite(relay1,HIGH);
+    delay(500);
+    digitalWrite(relay3,LOW);
+    digitalWrite(relay2,HIGH);    
+    delay(500);
+    digitalWrite(relay4,LOW);
+    digitalWrite(relay3,HIGH);
+    delay(500);
+    digitalWrite(relay4,HIGH);
+    delay(500);
+    done = true;
+  }
+  else{done = false;}
+  digitalWrite(relay1,HIGH); digitalWrite(relay2,HIGH); digitalWrite(relay3,HIGH); digitalWrite(relay4,HIGH);
 }
