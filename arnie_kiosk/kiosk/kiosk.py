@@ -1,5 +1,5 @@
 import sys
-from PySide6.QtWidgets import QApplication
+from PySide2.QtWidgets import QApplication
 
 # from database import ArnieDatabaseManager
 # from camera import ArnieCameraManager

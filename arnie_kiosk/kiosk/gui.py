@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import sys
-from PySide6.QtCore import (
+from PySide2.QtCore import (
     Qt,
     Slot,
     QStandardPaths,
@@ -8,7 +8,7 @@ from PySide6.QtCore import (
     Signal,
     QThread
 )
-from PySide6.QtWidgets import (
+from PySide2.QtWidgets import (
     QApplication,
     QMainWindow,
     QHBoxLayout,
@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QLineEdit
 )
-from PySide6.QtGui import (
+from PySide2.QtGui import (
     QImage,
     QPixmap
 )
@@ -82,7 +82,7 @@ class CameraThread(QThread):
 
 
 class IdlePage(QWidget):
-    """PySide6 Widget implementing the splash page for Arnie."""
+    """PySide Widget implementing the splash page for Arnie."""
     leaveIdle = Signal()
 
     def __init__(self, enterPageSignal):
@@ -121,7 +121,7 @@ class IdlePage(QWidget):
 
 
 class RegistrationPage(QWidget):
-    """PySide6 Widget implementing the user registration page for Arnie."""
+    """PySide2 Widget implementing the user registration page for Arnie."""
     
     cancelRegistration = Signal()
     setRegistrationDetails = Signal(str,str,QImage)
@@ -355,4 +355,4 @@ if __name__ == "__main__":
     app = QApplication()
     window = MainWindow()
     window.show()
-    sys.exit(app.exec())
+    sys.exit(app.exec_())
