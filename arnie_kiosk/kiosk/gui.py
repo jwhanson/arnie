@@ -24,6 +24,8 @@ from PySide2.QtGui import (
     QPixmap
 )
 import cv2
+import rospy
+from std_msgs.msg import UInt32
 
 
 PICTURE_VIEW_WIDTH = 320
@@ -216,14 +218,14 @@ class RegistrationPage(QWidget):
 
 class ConfirmationPage(QWidget):
 
-    cancelRegistration = Signal()
+    cancelConfirmation = Signal()
     retakeProfile = Signal()
     confirmUserInfo = Signal()
 
     def __init__(self, enterPageSignal):
         super().__init__()
 
-        enterPageSignal.connect(self.enter_confirmation)
+        enterPageSignal.connect(self.enter)
 
         main_layout = QHBoxLayout()
 
@@ -272,7 +274,7 @@ class ConfirmationPage(QWidget):
         self.setLayout(main_layout)
 
     @Slot(str,str,QImage)
-    def enter_confirmation(self, first_name, last_name, profile_picture):
+    def enter(self, first_name, last_name, profile_picture):
         print("entering conf page")
         self._profile_picture.clear()
 
@@ -282,7 +284,7 @@ class ConfirmationPage(QWidget):
 
         self._profile_picture.setPixmap(QPixmap.fromImage(profile_picture))
 
-    def leave_confirmation(self):
+    def leave(self):
         print("leaving conf page")
 
     @Slot(str,str,str)
@@ -296,21 +298,91 @@ class ConfirmationPage(QWidget):
     
     def approve(self):
         print("Approved!")
+        self.leave()
+        self.confirmUserInfo.emit()
 
     def retake(self):
+        self.leave()
         self.retakeProfile.emit()
 
     def cancel(self):
+        self.leave()
         self.cancelRegistration.emit()
+
+
+class OrderPage(QWidget):
+    '''PySide widget implementing a simple demo ordering system.'''
+
+    cancelOrder = Signal()
+    dispatchOrder = Signal(int)
+
+    #TODO: we need to formalize the concept of a menu in the program
+    _menu_text = """Please enter an order ID:
+1 - Classic Arnold Palmer
+2 - Just Lemonade
+3 - A Bit of Everything"""
+
+    def __init__(self, enterPageSignal):
+        super().__init__()
+
+        enterPageSignal.connect(self.enter)
+
+        main_layout = QVBoxLayout()
+
+        self._order_text = QLabel(self._menu_text)
+        font = self._order_text.font()
+        font.setPointSize(BODY_FONT_SIZE)
+        self._order_text.setFont(font)
+        self._order_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
+
+        main_layout.addWidget(self._order_text)
+
+        self._order_id_edit = QLineEdit()
+        self._order_id_edit.setFixedWidth(240) #TODO: unhardcode
+
+        self._submit_button = QPushButton("Submit")
+        self._submit_button.setFixedHeight(BUTTON_HEIGHT)
+        self._submit_button.clicked.connect(self.submit)
+
+        self._cancel_button = QPushButton("Cancel")
+        self._cancel_button.setFixedHeight(BUTTON_HEIGHT)
+        self._cancel_button.clicked.connect(self.cancel)
+
+        bot_layout = QHBoxLayout()
+        bot_layout.addWidget(self._order_id_edit)
+
+        bot_right_sublayout = QVBoxLayout()
+        bot_right_sublayout.addWidget(self._submit_button)
+        bot_right_sublayout.addWidget(self._cancel_button)
+
+        bot_layout.addLayout(bot_right_sublayout)
+        main_layout.addLayout(bot_layout)
+        self.setLayout(main_layout)
+
+    def enter(self):
+        print("entering order page")
+
+    def leave(self):
+        print("leaving order page")
+    
+    def submit(self):
+        order_id = int(self._order_id_edit.text())
+        self.dispatchOrder.emit(order_id)
+
+    def cancel(self):
+        self.leave()
+        self.cancelOrder.emit()
 
 
 class MainWindow(QMainWindow):
     enterIdle = Signal()
     enterRegistration = Signal()
     enterConfirmation = Signal(str,str,QImage)
+    enterOrder = Signal()
 
-    def __init__(self):
+    def __init__(self, ros_order_pub):
         super().__init__()
+        self.ros_order_pub = ros_order_pub
 
         self.setWindowTitle("Arnie Kiosk")
 
@@ -323,13 +395,20 @@ class MainWindow(QMainWindow):
 
         self._registration_page = RegistrationPage(self.enterRegistration)
         self._stacked_widget.addWidget(self._registration_page)
-        self._registration_page.cancelRegistration.connect(self.cancel_registration)
+        self._registration_page.cancelRegistration.connect(self.cancel_to_idle)
         self._registration_page.setRegistrationDetails.connect(self.intake_user_reg)
 
         self._confirmation_page = ConfirmationPage(self.enterConfirmation)
         self._stacked_widget.addWidget(self._confirmation_page)
-        self._confirmation_page.cancelRegistration.connect(self.cancel_registration)
+        self._confirmation_page.cancelConfirmation.connect(self.cancel_to_idle)
         self._confirmation_page.retakeProfile.connect(self.retake_user_info)
+        self._confirmation_page.confirmUserInfo.connect(self.proceed_to_order)
+
+        self._order_page = OrderPage(self.enterOrder)
+        self._stacked_widget.addWidget(self._order_page)
+        self._order_page.cancelOrder.connect(self.cancel_to_idle)
+        self._order_page.dispatchOrder.connect(self.dispatch_order)
+
 
     def leave_idle(self):
         #TODO: add logic here to select based on recoged/unrecoged face!
@@ -337,7 +416,7 @@ class MainWindow(QMainWindow):
         self._stacked_widget.setCurrentIndex(1) #hardcoding reg page index
         self.enterRegistration.emit()
     
-    def cancel_registration(self):
+    def cancel_to_idle(self):
         self._stacked_widget.setCurrentIndex(0) #TODO: fix widget hardcode
         self.enterIdle.emit()
 
@@ -350,9 +429,24 @@ class MainWindow(QMainWindow):
         self._stacked_widget.setCurrentIndex(1)
         self.enterRegistration.emit()
 
+    def proceed_to_order(self):
+        self._stacked_widget.setCurrentIndex(3)
+        self.enterOrder.emit()
+
+    @Slot(int)
+    def dispatch_order(self, order_id):
+        print(f"ROS is a go for order_id={order_id}")
+        self.ros_order_pub.publish(UInt32(order_id))
+
 
 if __name__ == "__main__":
+    order_pub = rospy.Publisher("order", UInt32)
+
+    print("Blocking until registered with ROS master...")
+    rospy.init_node("kiosk")
+    print("Success! Registered with ROS master")
+
     app = QApplication()
-    window = MainWindow()
+    window = MainWindow(order_pub)
     window.show()
     sys.exit(app.exec_())
