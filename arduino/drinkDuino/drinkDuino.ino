@@ -9,7 +9,8 @@
 #define relay4 7 //arduino digital pin
 bool done = false; //are we done dispensing the drink?
 
-ros::NodeHandle nh;
+/* ROS Setup */
+ros::NodeHandle nh; //start a ROS node
 void messageCb(const std_msgs::UInt16& toggle_msg){
   done = false;
   dispense(toggle_msg.data);
@@ -17,6 +18,7 @@ void messageCb(const std_msgs::UInt16& toggle_msg){
 ros::Subscriber<std_msgs::UInt16> sub("dispense_drink", messageCb);
 std_msgs::Bool srved_msg;
 ros::Publisher served("served", &srved_msg);
+/* End ROS Setup */
 
 void setup() {
   pinMode(relay1,OUTPUT);   pinMode(relay2,OUTPUT);   pinMode(relay3,OUTPUT);   pinMode(relay4,OUTPUT);
@@ -24,14 +26,14 @@ void setup() {
   nh.initNode();
   nh.advertise(served);
   nh.subscribe(sub);
-}
+} //end void setup()
 
 void loop() {
   srved_msg.data = done;
   served.publish( &srved_msg );
   nh.spinOnce();
   delay(500);
-}
+} //end void loop ()
 
 void dispense(int drinkNum){
   if(drinkNum==1){
