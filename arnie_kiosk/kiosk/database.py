@@ -1,3 +1,14 @@
+'''Arnie Database Management Module
+Jonathan Hanson
+
+IMPORTANT: This module is no longer intended for use in the final project.
+SQL functionality is unimplemented in the System-Integration build. In the
+future, a ROS node is expected to own SQL interactions, streamlining how
+we save the database and how it is exposed to relevant nodes.
+
+This module owns the sqlite3 database connection, helping to simplify how
+other modules get information into and out of the database.
+'''
 import sqlite3
 
 SQL_CREATE_USERS_TABLE = """
