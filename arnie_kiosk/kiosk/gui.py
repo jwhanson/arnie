@@ -86,7 +86,6 @@ class CameraThread(QThread):
             self.updateFrame.emit(img)
 
         self.cap.release()
-        cv2.destroyAllWindows()
 
     def quit(self):
         self.keep_alive = False
@@ -142,6 +141,11 @@ class RegistrationPage(QWidget):
 
         enterPageSignal.connect(self.enter_registration)
 
+        #NOTE: getting a path we can actually write with is kinda funny:
+        # QStandardPaths.PicturesLocation is a object that "knows" where 
+        # Pictures is, but doesn't return a path string like: 
+        # "/home/jon/Pictures". QStandardPaths.writableLocation returns the
+        # path string we need for a filename!
         self.pictures_location = QStandardPaths.writableLocation(QStandardPaths.PicturesLocation)
         self.picture_filename = f"{self.pictures_location}/tmp.jpg"
 
