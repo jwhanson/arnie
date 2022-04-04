@@ -1,4 +1,3 @@
-
 #include <ros.h>
 #include <std_msgs/String.h> //for compatibility with ROS
 #include <std_msgs/UInt16.h>
@@ -30,6 +29,12 @@ float ratio1 = 0.03; //ratio of goal position
 float ratio2 = 0.97; //ratio of previous position
 /* End Smoothing Variables */
 
+bool startedCounting = false;
+bool countingAgain = false;
+float timer; //ms
+float timer2;
+float waitTime = 3000; //ms
+float waitTime2 = 2000; //ms
 
 /* ROS Setup */
 ros::NodeHandle nh;
@@ -57,41 +62,71 @@ ros::Publisher placed("placed", &placed_msg);
 /* End ROS Setup */
 
 void setup() {
-  //  Serial.begin(9600); //for debug
+    Serial.begin(9600); //for debug
   pinMode(sw1, INPUT); pinMode(sw2, INPUT); //tell arduino the switches are inputs
+  pinMode(LED_BUILTIN,OUTPUT);
   servo0.attach(servo0pin); servo1.attach(servo1pin); servo2.attach(servo2pin); servo3.attach(servo3pin);
   nh.initNode();
   nh.advertise(placed);
   nh.subscribe(sub1);
   nh.subscribe(sub2);
   home();
-  //  Serial.println("Home");
+    Serial.println("Home");
   delay(1500); //wait 1.5 seconds to make sure servos are home
 }// end void setup()
 
 void loop() {
-  sw1State = !digitalRead(sw1);
-  sw2State = digitalRead(sw2);
-//  Serial.println(sw2State);
+  sw1State = !digitalRead(sw1); //buttons read high when pressed, so we invert them 
+  sw2State = !digitalRead(sw2); //which makes pressed = true and not pressed = false
+  Serial.print(sw1State);
+  Serial.print(" , ");
+  Serial.println(sw2State);
   if(orderUp){
-    if(!sw1State && !sw2State){ //if end effector button is not depressed
+    if(!sw1State && !sw2State && !served){ //if end effector and plate are not depressed
       // move to "receive cup" pose
       goal0 = 180;
-      goal1 = 40;
-      goal2 = 180;
+      goal1 = 50;
+      goal2 = 140;
       isPlaced = false;
     }
-    else if(sw1State && !sw2State){
+    else if(sw1State && !sw2State && !served && !startedCounting){ //if
+      // wait a sec for user to put in cup and get their hand away
+      timer = millis();
+      startedCounting = true;
+      isPlaced = false;
+    }
+    else if(startedCounting && timer + waitTime <= millis() && !sw2State && !countingAgain){
+      // place cup on platform
+      goal0 = 90;
+      goal1 = 90;
+      goal2 = 80;
+      timer2 = millis();
+      countingAgain = true;
+      isPlaced = false;
+    }
+    else if(startedCounting && countingAgain && timer + waitTime <= millis() && !sw2State && timer2 + waitTime2 <= millis()){
+      // place cup on platform
       goal0 = 0;
-      goal1 = 40;
+      goal1 = 30;
       goal2 = 180;
       isPlaced = false;
     }
-    else if(sw2State){
+    else if(startedCounting && countingAgain && timer + waitTime <= millis() && !sw2State && timer2 + waitTime2 <= millis() && sw2State){
+      // keep cup on platform
+      goal0 = 0;
+      goal1 = 30;
+      goal2 = 180;
+      isPlaced = true;
+    }
+    else if(served){
+      // pass drink back to user
+      goal0 = 180;
+      goal1 = 50;
+      goal2 = 140;
       isPlaced = true;
     }
     
-    goal3 = goal1 + (180 - goal2); //keep cup level
+    goal3 = goal1 + (140 - goal2); //keep cup level
     
     /* Smoothing */
     goal0smooth = (goal0 * ratio1) + (goal0prev * ratio2);
@@ -113,10 +148,12 @@ void loop() {
     servo2.write(goal2smooth);
     servo3.write(goal3smooth);
   }
-
+  if (isPlaced) { digitalWrite(LED_BUILTIN, HIGH);}
+  else{ digitalWrite(LED_BUILTIN, LOW);}
   placed.publish( &placed_msg);
+  
   nh.spinOnce();
-  delay(50);
+  delay(10);
 } //end void loop()
 
 
