@@ -25,7 +25,7 @@ from PySide2.QtGui import (
 )
 import cv2
 import rospy
-from std_msgs.msg import UInt32
+from std_msgs.msg import UInt16
 
 
 PICTURE_VIEW_WIDTH = 320
@@ -436,11 +436,11 @@ class MainWindow(QMainWindow):
     @Slot(int)
     def dispatch_order(self, order_id):
         print(f"ROS is a go for order_id={order_id}")
-        self.ros_order_pub.publish(UInt32(order_id))
+        self.ros_order_pub.publish(UInt16(order_id))
 
 
 if __name__ == "__main__":
-    order_pub = rospy.Publisher("order", UInt32)
+    order_pub = rospy.Publisher("order", UInt16)
 
     print("Blocking until registered with ROS master...")
     rospy.init_node("kiosk")
