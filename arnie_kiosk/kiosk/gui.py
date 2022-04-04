@@ -48,20 +48,15 @@ TITLE_FONT_SIZE = 16
 BODY_FONT_SIZE = 12
 BUTTON_HEIGHT = 48
 
-class GuiSignals(QObject):
-    setPage = Signal(int)
-    setNewUserInfo = Signal(str,str,str)
-
-
-class UserEntry(object):
-    def __init__(self, first_name, last_name, profile_picture):
-        self.first_name = first_name
-        self.last_name = last_name
-        self.profile_picture = profile_picture
-
-
 
 class CameraThread(QThread):
+    """A QThread for running an OpenCV video capture in the background.
+    Used by the Registration Page. This is kind of a hack of what a QThread
+    is designed to be (you can read more about QThread in the PySide docs).
+    I have overridden of the run() function to just be the code I want
+    executing, and overridden the quit() function to act as a soft kill for
+    run that allows the last loop to finish.
+    """
     updateFrame = Signal(QImage)
 
     def __init__(self):
