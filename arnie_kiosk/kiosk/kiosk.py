@@ -1,5 +1,7 @@
 import sys
 from PySide2.QtWidgets import QApplication
+import rospy
+from std_msgs.msg import UInt16
 
 # from database import ArnieDatabaseManager
 # from camera import ArnieCameraManager
@@ -9,8 +11,14 @@ PROJECT_DATABASE = "arnie.sqlite"
 CAMERA_DEVICE_ID = 0
 
 def main():
+    order_pub = rospy.Publisher("order", UInt16)
+
+    print("Blocking until registered with ROS master...")
+    rospy.init_node("kiosk")
+    print("Success! Registered with ROS master")
+
     app = QApplication()
-    window = MainWindow()
+    window = MainWindow(order_pub)
     window.showFullScreen()
     app.exec_()
 
