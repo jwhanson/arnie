@@ -1,7 +1,9 @@
 
 #include <ros.h>
 #include <std_msgs/String.h> //for compatibility with ROS
+#include <std_msgs/UInt16.h>
 #include <std_msgs/Bool.h>
+#include <std_msgs/Empty.h>
 #include <Servo.h>
 //#include <Ramp.h>
 #define sw1 2 //pin for switch on end effector
@@ -17,7 +19,8 @@
 Servo servo0; Servo servo1; Servo servo2; Servo servo3; //create servo objects for each servo for the library
 int getCup[] = {0,40,180,40}; // these are good positions to receive the cup
 bool orderUp = false; //whether we have the order and can start moving
-bool isPlaced; //has the cup been successfully placed on the platform?
+bool isPlaced = false; //has the cup been successfully placed on the platform?
+bool served = false; //are the valves done dispensing?
 bool sw1State;  bool sw2State; //stores whether switch is depressed or not
 /* Smoothing Variables */
 int goal0 = 90;       int goal1 = 90;       int goal2=90;         int goal3=90;
@@ -30,24 +33,39 @@ float ratio2 = 0.97; //ratio of previous position
 
 /* ROS Setup */
 ros::NodeHandle nh;
-void messageCb(const std_msgs::Bool& toggle_msg){
-  orderUp = toggle_msg.data;
+
+/* "order" topic */
+void orderCb(const std_msgs::UInt16& order_msg){
+  if (order_msg.data != 0){
+    orderUp = true;
+  }
+  else{
+    orderUp = false;
+  }
 }
-ros::Subscriber<std_msgs::Bool> sub("orderUp", messageCb);
+ros::Subscriber<std_msgs::UInt16> sub1("order", orderCb);
+
+/* "served" topic */
+void servedCb(const std_msgs::Bool& served_msg){
+  served = served_msg.data;
+}
+ros::Subscriber<std_msgs::Bool> sub2("served", servedCb);
+
+/* "placed" topic */
 std_msgs::Bool placed_msg;
 ros::Publisher placed("placed", &placed_msg);
 /* End ROS Setup */
 
 void setup() {
-  // put your setup code here, to run once:
-//  Serial.begin(9600); //for debug
+  //  Serial.begin(9600); //for debug
   pinMode(sw1, INPUT); pinMode(sw2, INPUT); //tell arduino the switches are inputs
   servo0.attach(servo0pin); servo1.attach(servo1pin); servo2.attach(servo2pin); servo3.attach(servo3pin);
   nh.initNode();
   nh.advertise(placed);
-  nh.subscribe(sub);
+  nh.subscribe(sub1);
+  nh.subscribe(sub2);
   home();
-//  Serial.println("Home");
+  //  Serial.println("Home");
   delay(1500); //wait 1.5 seconds to make sure servos are home
 }// end void setup()
 
@@ -58,13 +76,13 @@ void loop() {
   if(orderUp){
     if(!sw1State && !sw2State){ //if end effector button is not depressed
       // move to "receive cup" pose
-      goal0 = 0;
+      goal0 = 180;
       goal1 = 40;
       goal2 = 180;
       isPlaced = false;
     }
     else if(sw1State && !sw2State){
-      goal0 = 180;
+      goal0 = 0;
       goal1 = 40;
       goal2 = 180;
       isPlaced = false;
