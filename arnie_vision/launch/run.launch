@@ -1,0 +1,12 @@
+<launch>
+    <node
+    name="camera"
+    pkg="arnie_vision"
+    type="camera.cpp"
+    output="screen"/>
+    <node
+    name="recognizer"
+    pkg="arnie_vision"
+    type="recognizer.py"
+    output="screen"/>
+</launch>
