@@ -7,10 +7,17 @@ project(arnie_vision)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED)
+find_package(catkin REQUIRED COMPONENTS
+  roslaunch
+  image_transport
+  roscpp
+  rospy
+  sensor_msgs
+  std_msgs
+  cv_bridge
+)
 find_package(OpenCV REQUIRED)
 find_package(Boost REQUIRED)
-find_package(roslaunch)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -204,7 +211,10 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-foreach(dir launch src)
-    install(DIRECTORY ${dir}/
-        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/${dir})
-endforeach(dir)
+add_executable(camera src/camera.cpp)
+target_link_libraries(camera ${catkin_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES})
+install(TARGETS camera RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+
+catkin_install_python(PROGRAMS src/recognizer.py DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+
+install(DIRECTORY launch/ DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch)

@@ -4,6 +4,9 @@ import cv2
 import numpy as np
 import os
 import rospy
+import std_msgs.msg
+import sensor_msgs.msg
+from cv_bridge import CvBridge
 from time import time_ns
 
 NAME = "recognizer"
@@ -18,7 +21,12 @@ TEST_IMAGES_DIR = os.path.join(
 class ArnieRecognizer(object):
     '''Arnie face recognizer object.'''
 
-    def __init__(self):
+    def __init__(self, names_pub):
+        self.names_pub = names_pub
+        self.time_last_processed_ns = 0
+        self.process_period_ns = int(1e9)
+        self.bridge = CvBridge()
+
         self.known_face_encodings = []
         self.known_face_names = []
 
@@ -63,27 +71,30 @@ class ArnieRecognizer(object):
             
             self.face_names.append(name)
 
+        self.show_names()
         return True
 
     def show_names(self):
         print(self.face_names)
+        self.names_pub.publish(std_msgs.msg.String(str(self.face_names)))
+
+    
+    def frame_callback(self, image_msg):
+        now_ns = time_ns()
+        if now_ns < self.time_last_processed_ns + self.process_period_ns:
+            return
+        frame = self.bridge.imgmsg_to_cv2(image_msg)
+        self.loop(frame)
+        self.time_last_processed_ns = now_ns
 
 
 def main():
-    time_last_processed_ns = 0
-    process_period_ns = 1e9
-    recog = ArnieRecognizer()
+    process_period_ns = int(10e9)
+    pub = rospy.Publisher("recoged_names", std_msgs.msg.String)
+    recog = ArnieRecognizer(pub)
 
-    def frame_callback(data):
-        now_ns = time_ns()
-        if now_ns > time_last_processed_ns + process_period_ns:
-            return
-        frame = data.data
-        recog.loop(frame)
-        time_last_processed = now_ns
-
-    rospy.Subscriber("frame", frame_callback)
     rospy.init_node(NAME)
+    rospy.Subscriber("frame", sensor_msgs.msg.Image, recog.frame_callback)
     rospy.spin()
 
 

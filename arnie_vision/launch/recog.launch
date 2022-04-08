@@ -2,7 +2,8 @@
     <node
     name="camera"
     pkg="arnie_vision"
-    type="camera.cpp"
+    type="camera"
+    args="0"
     output="screen"/>
     <node
     name="recognizer"
