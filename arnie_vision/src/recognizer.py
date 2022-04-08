@@ -1,3 +1,16 @@
+'''Face Recognition Module for Arnie
+Jonathan Hanson
+
+This module implements all face_recognition processing for Arnie. The flow is:
+this node subscribes to the "frame" topic, once per second runs the
+do_recogntion() method to identify faces, and publishes the faces it sees to
+the "recoged_names" topic.
+
+An interesting design decision: this module really does subscribe to every
+frame published, but has a timer that only runs the recognition sequence once
+per second. This is cleaner than a) fiddling with subscribing and
+unsubscribing, and b) somehow slowing down the subscriber.
+'''
 #!/usr/bin/env python3
 import face_recognition
 import cv2
@@ -45,8 +58,8 @@ class ArnieRecognizer(object):
         self.face_encodings = []
         self.face_names = []
 
-    def loop(self, frame):
-        '''Main recog loop.'''
+    def do_recognition(self, frame):
+        '''Main recognition sequence.'''
         #resize to 1/4 for faster processing
         small_frame = cv2.resize(frame, (0,0), fx=0.25, fy=0.25)
 
@@ -78,18 +91,24 @@ class ArnieRecognizer(object):
         print(self.face_names)
         self.names_pub.publish(std_msgs.msg.String(str(self.face_names)))
 
-    
     def frame_callback(self, image_msg):
+        '''ROS Subscriber callback for a sensor_msgs.msg.Image message.
+
+        Note: for frames published faster than process_period_ns, this 
+        function simply returns! If frame publishing is slower, great, we
+        handle every frame. If frame publishing is faster, we just dismiss
+        the message to avoid taxing the Raspberry Pi with constant face
+        recognizing.
+        '''
         now_ns = time_ns()
         if now_ns < self.time_last_processed_ns + self.process_period_ns:
             return
         frame = self.bridge.imgmsg_to_cv2(image_msg)
-        self.loop(frame)
+        self.do_recognition(frame)
         self.time_last_processed_ns = now_ns
 
 
 def main():
-    process_period_ns = int(10e9)
     pub = rospy.Publisher("recoged_names", std_msgs.msg.String)
     recog = ArnieRecognizer(pub)
 

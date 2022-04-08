@@ -1,3 +1,13 @@
+/* Raw camera ROS subscriber node
+ *
+ * Author:
+ * Jonathan Hanson
+ *
+ * Description:
+ * This node is just a simple preview of what is on the "frame" topic, which
+ * is published by the camera node. It's also a nice example of a C++ ROS
+ * subscriber. For debug use only.
+ */
 #include <ros/ros.h>
 #include <image_transport/image_transport.h>
 #include <opencv2/opencv.hpp>
