@@ -215,6 +215,10 @@ add_executable(camera src/camera.cpp)
 target_link_libraries(camera ${catkin_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES})
 install(TARGETS camera RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
+add_executable(preview src/preview.cpp)
+target_link_libraries(preview ${catkin_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES})
+install(TARGETS preview RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+
 catkin_install_python(PROGRAMS src/recognizer.py DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 install(DIRECTORY launch/ DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch)
