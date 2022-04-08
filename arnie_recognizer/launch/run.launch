@@ -1,7 +1,0 @@
-<launch>
-    <node
-        name="recognizer"
-        pkg="arnie_recognizer"
-        type="recognizer.py"
-        output="screen"/>
-</launch>
