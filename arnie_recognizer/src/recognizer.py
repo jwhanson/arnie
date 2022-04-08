@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import face_recognition
 import cv2
 import numpy as np
@@ -5,15 +6,18 @@ import os
 
 CAMERA_DEVICE_ID = 0
 USE_TEST_IMAGES = True
-TEST_IMAGES_DIR = "./faces/"
+TEST_IMAGES_DIR = os.path.join(
+    os.getenv("ROS_PACKAGE_PATH").split(':')[0],
+    'arnie',
+    'arnie_recognizer',
+    'faces'
+)
 
 class ArnieRecognizer(object):
     '''Arnie face recognizer object.'''
 
     def __init__(self):
         self.cap = cv2.VideoCapture(CAMERA_DEVICE_ID)
-        self.keep_alive = True
-
         self.known_face_encodings = []
         self.known_face_names = []
 
@@ -73,10 +77,6 @@ class ArnieRecognizer(object):
 
         self.process_this_frame = not self.process_this_frame
 
-        #check for 'q' to quit
-        if (cv2.waitKey(5) & 0xff) == ord('q'):
-            return False
-        
         return True
 
     def show_names(self):

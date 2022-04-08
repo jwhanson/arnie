@@ -2,5 +2,6 @@
     <node
         name="recognizer"
         pkg="arnie_recognizer"
-        type="$(find arnie_recognizer)/src/recognizer.py"/>
+        type="recognizer.py"
+        output="screen"/>
 </launch>
