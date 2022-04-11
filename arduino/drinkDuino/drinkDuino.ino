@@ -7,8 +7,10 @@
 #define relay2 5 //arduino digital pin
 #define relay3 6 //arduino digital pin
 #define relay4 7 //arduino digital pin
-bool placed = false;
+bool placed = false; //is the cup on the platform?
+bool prevDone = false; //
 bool done = false; //are we done dispensing the drink?
+int drink = 0;
 
 /* ROS Setup */
 ros::NodeHandle nh; //start a ROS node
@@ -16,18 +18,22 @@ ros::NodeHandle nh; //start a ROS node
 /* "order" topic */
 void orderCb(const std_msgs::UInt16& order_msg){ //callback function for "order" subscriber
   done = false; //obviously not done because function was just called, so make sure here
-  if (placed){  
-    dispense(order_msg.data); //pass order data to to relay interpretation function
-  }
-  else{
-    done = false;
-  }
+  drink = order_msg.data;
+
 }
 ros::Subscriber<std_msgs::UInt16> sub1("order", orderCb); //create subscriber for "order" topic
 
 /* "placed" topic */
 void placedCb(const std_msgs::Bool& placed_msg){ //callback function for "placed" subscriber
   placed = placed_msg.data; //store the boolean received from the placed topic
+  if (placed && drink != 0 && !done){  
+    delay(2000);
+    dispense(drink); //pass order data to to relay interpretation function
+    done = true;
+  }
+//  else{
+//    done = false;
+//  }
 }
 ros::Subscriber<std_msgs::Bool> sub2("placed", placedCb); //create subscriber for "placed" topic
 
@@ -46,10 +52,10 @@ void setup() {
 } //end void setup()
 
 void loop() {
-  srved_msg.data = done;
-  served.publish( &srved_msg );
+//  relayPulse(500);
+
   nh.spinOnce();
-  delay(500);
+  delay(5);
 } //end void loop ()
 
 void dispense(int drinkNum){
@@ -84,7 +90,9 @@ void dispense(int drinkNum){
     digitalWrite(relay3,HIGH);
     digitalWrite(relay4,HIGH);
     delay(200);
-    done = true;
+    srved_msg.data = true;
+    served.publish( &srved_msg );
+    //done = true;
   }
   else if(drinkNum == 2){
     digitalWrite(relay1,LOW);
@@ -107,7 +115,9 @@ void dispense(int drinkNum){
     digitalWrite(relay3,LOW);
     digitalWrite(relay4,LOW);
     delay(1000);
-    done = true;
+    srved_msg.data = true;
+    served.publish( &srved_msg );
+//    done = true;
   }
   else if(drinkNum == 3){
     digitalWrite(relay1,LOW);
@@ -126,7 +136,9 @@ void dispense(int drinkNum){
     delay(500);
     digitalWrite(relay4,HIGH);
     delay(500);
-    done = true;
+    srved_msg.data = true;
+    served.publish( &srved_msg );
+//    done = true;
   }
     else if(drinkNum == 4){
     digitalWrite(relay1,LOW);
@@ -142,10 +154,15 @@ void dispense(int drinkNum){
     delay(500);
     digitalWrite(relay4,HIGH);
     delay(500);
-    done = true;
-    
+//    done = true;
+    srved_msg.data = true;
+    served.publish( &srved_msg );
   }
-  else{done = false;}
+  else{
+    srved_msg.data = false;
+    served.publish( &srved_msg );
+//    done = false;
+  }
   digitalWrite(relay1,HIGH); digitalWrite(relay2,HIGH); digitalWrite(relay3,HIGH); digitalWrite(relay4,HIGH);
   
 }

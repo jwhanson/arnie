@@ -19,6 +19,7 @@ Servo servo0; Servo servo1; Servo servo2; Servo servo3; //create servo objects f
 int getCup[] = {0,40,180,40}; // these are good positions to receive the cup
 bool orderUp = false; //whether we have the order and can start moving
 bool isPlaced = false; //has the cup been successfully placed on the platform?
+bool serving = false; //are we attempting to place cup and serve a drink?
 bool served = false; //are the valves done dispensing?
 bool sw1State;  bool sw2State; //stores whether switch is depressed or not
 /* Smoothing Variables */
@@ -31,10 +32,17 @@ float ratio2 = 0.97; //ratio of previous position
 
 bool startedCounting = false;
 bool countingAgain = false;
+bool countingAgainAgain = false;
+bool counting4;
 float timer; //ms
 float timer2;
+float timer3;
+float timer4;
 float waitTime = 3000; //ms
 float waitTime2 = 2000; //ms
+int status_string;
+int prevString;
+int string_msg;
 
 /* ROS Setup */
 ros::NodeHandle nh;
@@ -59,6 +67,10 @@ ros::Subscriber<std_msgs::Bool> sub2("served", servedCb);
 /* "placed" topic */
 std_msgs::Bool placed_msg;
 ros::Publisher placed("placed", &placed_msg);
+
+/* "status" topic */
+std_msgs::UInt16 status_msg;
+ros::Publisher status("status", &status_msg);
 /* End ROS Setup */
 
 void setup() {
@@ -68,6 +80,7 @@ void setup() {
   servo0.attach(servo0pin); servo1.attach(servo1pin); servo2.attach(servo2pin); servo3.attach(servo3pin);
   nh.initNode();
   nh.advertise(placed);
+  nh.advertise(status);
   nh.subscribe(sub1);
   nh.subscribe(sub2);
   home();
@@ -75,55 +88,94 @@ void setup() {
   delay(1500); //wait 1.5 seconds to make sure servos are home
 }// end void setup()
 
+
 void loop() {
   sw1State = !digitalRead(sw1); //buttons read high when pressed, so we invert them 
   sw2State = !digitalRead(sw2); //which makes pressed = true and not pressed = false
   Serial.print(sw1State);
   Serial.print(" , ");
   Serial.println(sw2State);
+  prevString = status_string;
   if(orderUp){
-    if(!sw1State && !sw2State && !served){ //if end effector and plate are not depressed
+    if(!sw1State && !sw2State && !served && !isPlaced && !serving){ //if end effector and plate are not depressed
+      //maybe add !orderUp******
+      
       // move to "receive cup" pose
-      goal0 = 180;
+      goal0 = 0;
       goal1 = 50;
       goal2 = 140;
       isPlaced = false;
+//      status_string = "Waiting for cup";
+      status_string = 1;
     }
     else if(sw1State && !sw2State && !served && !startedCounting){ //if
       // wait a sec for user to put in cup and get their hand away
       timer = millis();
+      serving = true;
       startedCounting = true;
       isPlaced = false;
+//      status_string = "Got cup, waiting a sec";
+      status_string = 2;
     }
     else if(startedCounting && timer + waitTime <= millis() && !sw2State && !countingAgain){
-      // place cup on platform
+      // move to an intermediate position to avoid obstacles
       goal0 = 90;
-      goal1 = 90;
-      goal2 = 80;
+      goal1 = 120;
+      goal2 = 135;
       timer2 = millis();
       countingAgain = true;
       isPlaced = false;
+//      status_string = "Moving to stand step 1";
+      status_string = 3;
     }
-    else if(startedCounting && countingAgain && timer + waitTime <= millis() && !sw2State && timer2 + waitTime2 <= millis()){
-      // place cup on platform
-      goal0 = 0;
-      goal1 = 30;
-      goal2 = 180;
+    else if(startedCounting && countingAgain && !countingAgainAgain && timer + waitTime <= millis() && !sw2State && timer2 + waitTime2 <= millis()){
+      // get closer to platform
+      goal0 = 160;
+      goal1 = 55;
+      goal2 = 150;
       isPlaced = false;
+      timer3 = millis();
+      countingAgainAgain = true;
+//      status_string = "Moving to stand step 2";
+      status_string = 4;
     }
-    else if(startedCounting && countingAgain && timer + waitTime <= millis() && !sw2State && timer2 + waitTime2 <= millis() && sw2State){
+    else if(countingAgainAgain && !sw2State && timer3 + waitTime2 <= millis()){
+      // place cup on platform
+      goal0 = 180;
+      goal1 = 20;
+      goal2 = 177;
+      isPlaced = false;
+//      status_string = "Putting cup on stand";
+      status_string = 5;
+    }
+    else if(sw2State && !served && serving){
       // keep cup on platform
-      goal0 = 0;
-      goal1 = 30;
-      goal2 = 180;
+      goal0 = 180;
+      goal1 = 37;
+      goal2 = 177;
+      timer4 = millis();
+      counting4 = true;
       isPlaced = true;
+//      status_string = "Cup on stand, dispensing";
+      status_string = 6;
     }
-    else if(served){
+    else if(served && counting4 && timer4 + waitTime2 <= millis()){
       // pass drink back to user
       goal0 = 180;
       goal1 = 50;
       goal2 = 140;
       isPlaced = true;
+//      status_string = "Moving back to user, step 1";
+      status_string = 7;
+    }
+    else if(served){
+      // pass drink back to user
+      goal0 = 0;
+      goal1 = 50;
+      goal2 = 140;
+      isPlaced = true;
+//      status_string = "Cup should be at user now.";
+      status_string = 8;
     }
     
     goal3 = goal1 + (140 - goal2); //keep cup level
@@ -150,10 +202,15 @@ void loop() {
   }
   if (isPlaced) { digitalWrite(LED_BUILTIN, HIGH);}
   else{ digitalWrite(LED_BUILTIN, LOW);}
+  placed_msg.data = isPlaced;
   placed.publish( &placed_msg);
-  
+  string_msg = status_string;
+  if(prevString != status_string){
+    status_msg.data = string_msg;
+  }
+  status.publish( &status_msg );
   nh.spinOnce();
-  delay(10);
+  delay(15);
 } //end void loop()
 
 
@@ -169,45 +226,6 @@ void loop() {
 
 
 
-//void moveLvl(int gol0, int gol1, int gol2, int gol3){  
-//  N = t/dT;
-//  pos0 = servo0.read(); //90;
-//  pos1 = servo1.read(); //90;
-//  pos2 = servo2.read(); //90;
-//  pos3 = servo3.read(); //90;
-//  d0 = gol0 - pos0;
-//  d1 = gol1 - pos1;
-//  d2 = gol2 - pos2;
-//  d3 = gol3 - pos3;
-//  step0 = d0/N;
-//  step1 = d1/N;
-//  step2 = d2/N;
-//  step3 = d3/N;
-////  while(
-//    for (int i=0; i<N; i++){
-//      servo0.write(i*step0 + pos0);
-//      servo3level = (i*step1+pos1) + (180 - (i*step2+pos2));
-//      servo3.write(servo3level);
-//      servo1.write(i*step1 + pos1);
-//      servo2.write(i*step2 + pos2);
-//
-//      delay(dT);
-//    }
-//}
-
-void relayPulse(){
-  digitalWrite(relay1,LOW);
-  digitalWrite(relay2,LOW);
-  digitalWrite(relay3,LOW);
-  digitalWrite(relay4,LOW);
-  delay(5000);
-  digitalWrite(relay1,HIGH);
-  digitalWrite(relay2,HIGH);
-  digitalWrite(relay3,HIGH);
-  digitalWrite(relay4,HIGH);
-  delay(5000);
-}
-
 void printServos(){
   Serial.print("joint0 reading: ");
   Serial.print(servo0.read());
@@ -219,33 +237,5 @@ void printServos(){
   Serial.println(servo3.read());
 }
 
-//void sweep(int goal){
-//    for (pos = 0; pos <= goal; pos += 1) { // goes from 0 degrees to 180deg in steps of 1deg
-//    servo0.write(pos);  // tell servo to go to position in variable 'pos'
-//    servo1.write(pos);       
-//    servo2.write(pos);       
-//    servo3.write(pos);       
-//    delay(2);  
-//    }// waits 15 ms for the servo to reach the position
-//}
 
 /* GRAVEYARD */
-//  receive_cute();
-//  pulled_up_cntrd();
-//  fill_cute();
-//  moveLvl(0,40,180,40);
-//  moveLvl(90,135,135,170);
-//  moveLvl(180,40,180,40);
-//  moveLvl(180,50,90,60);
-
-/* From moveLvl()
- *  
-  //      Serial.print("joint0 desired: ");
-  //      Serial.print(i*step0 + pos0);
-  //      Serial.print("\t | joint1 desired: ");
-  //      Serial.print(i*step1 + pos1);
-  //      Serial.print("\t | joint2 desired: ");
-  //      Serial.print(i*step2 + pos2);
-  //      Serial.print("\t | joint3 desired: ");
-  //      Serial.println(servo3level);
-*/

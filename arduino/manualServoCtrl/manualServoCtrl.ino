@@ -121,7 +121,7 @@ void sweep(int goal){
 
 
 void loop() {
-  servo0.write(180);
+  servo0.write(0);
 //  delay(2000);
 //  servo0.write(90);
 //  delay(2000);
