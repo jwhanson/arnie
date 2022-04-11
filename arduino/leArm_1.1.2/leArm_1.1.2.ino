@@ -34,10 +34,14 @@ bool startedCounting = false;
 bool countingAgain = false;
 bool countingAgainAgain = false;
 bool counting4;
+bool counting5;
+bool done = false;
+bool prevPlaced = false;
 float timer; //ms
 float timer2;
 float timer3;
 float timer4;
+float timer5;
 float waitTime = 3000; //ms
 float waitTime2 = 2000; //ms
 int status_string;
@@ -96,6 +100,7 @@ void loop() {
   Serial.print(" , ");
   Serial.println(sw2State);
   prevString = status_string;
+  prevPlaced = isPlaced;
   if(orderUp){
     if(!sw1State && !sw2State && !served && !isPlaced && !serving){ //if end effector and plate are not depressed
       //maybe add !orderUp******
@@ -139,7 +144,7 @@ void loop() {
 //      status_string = "Moving to stand step 2";
       status_string = 4;
     }
-    else if(countingAgainAgain && !sw2State && timer3 + waitTime2 <= millis()){
+    else if(countingAgainAgain && !sw2State && timer3 + waitTime2 <= millis() && !isPlaced){
       // place cup on platform
       goal0 = 180;
       goal1 = 20;
@@ -159,16 +164,18 @@ void loop() {
 //      status_string = "Cup on stand, dispensing";
       status_string = 6;
     }
-    else if(served && counting4 && timer4 + waitTime2 <= millis()){
+    else if(served && counting4 && timer4 + waitTime2 <= millis() && !done && !counting5){
       // pass drink back to user
       goal0 = 180;
-      goal1 = 50;
-      goal2 = 140;
+      goal1 = 60;
+      goal2 = 180;
       isPlaced = true;
 //      status_string = "Moving back to user, step 1";
+      counting5 = true;
+      timer5 = millis();
       status_string = 7;
     }
-    else if(served){
+    else if(served && counting5 && timer5 + waitTime2 <= millis()){
       // pass drink back to user
       goal0 = 0;
       goal1 = 50;
@@ -176,6 +183,7 @@ void loop() {
       isPlaced = true;
 //      status_string = "Cup should be at user now.";
       status_string = 8;
+      done = true;
     }
     
     goal3 = goal1 + (140 - goal2); //keep cup level
@@ -202,13 +210,17 @@ void loop() {
   }
   if (isPlaced) { digitalWrite(LED_BUILTIN, HIGH);}
   else{ digitalWrite(LED_BUILTIN, LOW);}
-  placed_msg.data = isPlaced;
-  placed.publish( &placed_msg);
+  if (prevPlaced != isPlaced){
+    placed_msg.data = isPlaced;
+    placed.publish( &placed_msg);
+  }
+  
   string_msg = status_string;
   if(prevString != status_string){
     status_msg.data = string_msg;
+    status.publish( &status_msg );
   }
-  status.publish( &status_msg );
+  
   nh.spinOnce();
   delay(15);
 } //end void loop()
