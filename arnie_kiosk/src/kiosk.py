@@ -8,10 +8,9 @@ An important design pressure is to decouple the windows as much as possible.
 Evantually, perhaps a ArniePage parent class that defines the interface could
 help with this.
 
-For now, the Registration Page grabs the OpenCV video capture to provide the
-profile picture view and take the picture. This is undesirable because the
-VideoCapture is a shared resource and the "recognizer" module also depends on
-this resource. Future ROS development should help decouple this.
+In the latest update, the Registration Page now gets its images for video
+feedback from the 'frame' ROS topic, which is published by a 'camera' ROS node
+and consumed by the 'kiosk' and 'recognizer' nodes.
 '''
 import sys
 from PySide2.QtCore import (
