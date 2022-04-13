@@ -10,7 +10,7 @@ help with this.
 
 In the latest update, the Registration Page now gets its images for video
 feedback from the 'frame' ROS topic, which is published by a 'camera' ROS node
-and consumed by the 'kiosk' and 'recognizer' nodes.
+and consumed by the 'gui' and 'recognizer' nodes.
 '''
 import sys
 from PySide2.QtCore import (

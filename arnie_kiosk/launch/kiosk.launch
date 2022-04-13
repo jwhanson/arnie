@@ -6,8 +6,8 @@
     args="0"
     output="screen"/>
     <node
-    name="kiosk"
+    name="gui"
     pkg="arnie_kiosk"
-    type="kiosk.py"
+    type="gui.py"
     output="screen"/>
 </launch>
