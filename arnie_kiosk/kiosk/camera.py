@@ -1,3 +1,14 @@
+'''Arnie Camera Management Module
+Jonathan Hanson
+
+IMPORTANT: This module is no longer intended for use in the final project.
+For now the Registration page directly imports cv2 for use in the camera
+thread. In the future, a camera streaming ROS node will expose camera data
+to the kiosk node and the recognizer node.
+
+This module owns the OpenCV VideoCapture object, and helps to streamline
+serving it to different modules that need camera frames.
+'''
 import cv2
 import os
 
