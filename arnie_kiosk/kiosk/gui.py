@@ -1,14 +1,28 @@
-#!/usr/bin/env python3
+'''Arnie GUI Implementation
+
+This module implements the Arnie Kiosk GUI with the PySide2 Qt library. The
+design is a MainWindow with a central StackedWidget where all indivdual "pages"
+are implemented as widgets and accessed by index from the StackedWidget.
+
+An important design pressure is to decouple the windows as much as possible.
+Evantually, perhaps a ArniePage parent class that defines the interface could
+help with this.
+
+For now, the Registration Page grabs the OpenCV video capture to provide the
+profile picture view and take the picture. This is undesirable because the
+VideoCapture is a shared resource and the "recognizer" module also depends on
+this resource. Future ROS development should help decouple this.
+'''
 import sys
-from turtle import right
-from PySide6.QtCore import (
+from PySide2.QtCore import (
     Qt,
     Slot,
     QStandardPaths,
     QObject,
-    Signal
+    Signal,
+    QThread
 )
-from PySide6.QtWidgets import (
+from PySide2.QtWidgets import (
     QApplication,
     QMainWindow,
     QHBoxLayout,
@@ -19,44 +33,84 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QLineEdit
 )
-from PySide6.QtMultimedia import (
-    QCamera,
-    QImageCapture,
-    QMediaCaptureSession,
-    QMediaDevices,
-
-)
-from PySide6.QtGui import (
+from PySide2.QtGui import (
+    QImage,
     QPixmap
 )
-from PySide6.QtMultimediaWidgets import (
-    QVideoWidget
-)
+import cv2
+import rospy
+from std_msgs.msg import UInt16
 
 
-class GuiSignals(QObject):
-    setPage = Signal(int)
-    setNewUserInfo = Signal(str,str,str)
+PICTURE_VIEW_WIDTH = 320
+PICTURE_VIEW_HEIGHT = 240
+TITLE_FONT_SIZE = 16
+BODY_FONT_SIZE = 12
+BUTTON_HEIGHT = 48
+
+
+class CameraThread(QThread):
+    """A QThread for running an OpenCV video capture in the background.
+    Used by the Registration Page. This is kind of a hack of what a QThread
+    is designed to be (you can read more about QThread in the PySide docs).
+    I have overridden of the run() function to just be the code I want
+    executing, and overridden the quit() function to act as a soft kill for
+    run that allows the last loop to finish.
+    """
+    updateFrame = Signal(QImage)
+
+    def __init__(self):
+        QThread.__init__(self)
+
+    def run(self):
+        self.cap = cv2.VideoCapture(0)
+        self.keep_alive = True
+
+        while self.keep_alive:
+            ret, frame = self.cap.read()
+            if not ret:
+                continue
+
+            #transform frame
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = cv2.flip(frame, 1)
+
+            #convert frame to img
+            h, w, ch = frame.shape
+            img = QImage(frame.data, w, h, ch*w, QImage.Format_RGB888)
+
+            #size down img
+            img = img.scaled(PICTURE_VIEW_WIDTH, PICTURE_VIEW_HEIGHT, Qt.KeepAspectRatio)
+
+            #emit img
+            self.updateFrame.emit(img)
+
+        self.cap.release()
+
+    def quit(self):
+        self.keep_alive = False
 
 
 class IdlePage(QWidget):
-    """PySide6 Widget implementing the splash page for Arnie."""
-    def __init__(self, gui_signals):
+    """PySide Widget implementing the splash page for Arnie."""
+    leaveIdle = Signal()
+
+    def __init__(self, enterPageSignal):
         super().__init__()
 
-        self.gui_signals = gui_signals
+        enterPageSignal.connect(self.enter_page)
 
         layout = QVBoxLayout()
 
         self.title_text = QLabel("ArnieBot - The Original Iced Tea + Lemonade\nBeverage Service System")
         font = self.title_text.font()
-        font.setPointSize(32)
+        font.setPointSize(TITLE_FONT_SIZE)
         self.title_text.setFont(font)
         self.title_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
         self.prompt_text = QLabel("Touch anywhere to begin")
         font = self.prompt_text.font()
-        font.setPointSize(24)
+        font.setPointSize(BODY_FONT_SIZE)
         self.prompt_text.setFont(font)
         self.prompt_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
@@ -64,45 +118,62 @@ class IdlePage(QWidget):
         layout.addWidget(self.prompt_text)
         self.setLayout(layout)
     
+    def enter_page(self):
+        print('entering idle page')
+
+    def leave_page(self):
+        print('leaving idle page')
+
     def mousePressEvent(self, event):
         print("click...")
-        self.gui_signals.setPage.emit(1)
-
+        self.leave_page()
+        self.leaveIdle.emit()
 
 
 class RegistrationPage(QWidget):
-    """PySide6 Widget implementing the user registration page for Arnie."""
-    def __init__(self, gui_signals):
+    """PySide2 Widget implementing the user registration page for Arnie."""
+    
+    cancelRegistration = Signal()
+    setRegistrationDetails = Signal(str,str,QImage)
+
+    def __init__(self, enterPageSignal):
         super().__init__()
 
-        self.gui_signals = gui_signals
+        enterPageSignal.connect(self.enter_registration)
 
+        #NOTE: getting a path we can actually write with is kinda funny:
+        # QStandardPaths.PicturesLocation is a object that "knows" where 
+        # Pictures is, but doesn't return a path string like: 
+        # "/home/jon/Pictures". QStandardPaths.writableLocation returns the
+        # path string we need for a filename!
         self.pictures_location = QStandardPaths.writableLocation(QStandardPaths.PicturesLocation)
         self.picture_filename = f"{self.pictures_location}/tmp.jpg"
 
         self.greeting_text = QLabel("Welcome new user!\nPlease enter your name\nand take a profile picture")
         font = self.greeting_text.font()
-        font.setPointSize(16)
+        font.setPointSize(BODY_FONT_SIZE)
         self.greeting_text.setFont(font)
         self.greeting_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
         self.first_name_label = QLabel("First Name:")
         self.first_name_label.setAlignment(Qt.AlignLeft|Qt.AlignBottom)
-        self.first_name_label.setFixedHeight(32)
+        self.first_name_label.setFixedHeight(24)
         self.first_name_edit = QLineEdit("Arnold")
-        self.first_name_edit.setFixedWidth(240)
+        self.first_name_edit.setFixedWidth(180)
 
         self.last_name_label = QLabel("Last Name:")
         self.last_name_label.setAlignment(Qt.AlignLeft|Qt.AlignBottom)
-        self.last_name_label.setFixedHeight(32)
+        self.last_name_label.setFixedHeight(24)
         self.last_name_edit = QLineEdit("Palmer")
-        self.last_name_edit.setFixedWidth(240)
+        self.last_name_edit.setFixedWidth(180)
 
         self.spacer_label = QLabel("")
     
         self.take_picture_button = QPushButton("Take Picture")
+        self.take_picture_button.setFixedHeight(BUTTON_HEIGHT)
     
         self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.setFixedHeight(BUTTON_HEIGHT)
 
         self.left_layout = QVBoxLayout()
         self.left_layout.addWidget(self.greeting_text)
@@ -114,95 +185,77 @@ class RegistrationPage(QWidget):
         self.left_layout.addWidget(self.take_picture_button)
         self.left_layout.addWidget(self.cancel_button)
 
-        self.viewfinder = QVideoWidget()
+        self.camera_view_label = QLabel(self)
+        self.camera_view_label.setFixedSize(PICTURE_VIEW_WIDTH, PICTURE_VIEW_HEIGHT)
 
-        available_cameras = QMediaDevices.videoInputs()
-        if available_cameras:
-            self._camera_info = available_cameras[0]
+        self.camera_view_img = QImage()
 
-            self._camera = QCamera(self._camera_info)
-            self._camera.errorOccurred.connect(self._camera_error)
-
-            self._image_capture = QImageCapture(self._camera)
-            # self._image_capture.imageCaptured.connect(self.image_captured)
-            self._image_capture.imageSaved.connect(self.image_saved)
-            self._image_capture.errorOccurred.connect(self._capture_error)
-
-            self._capture_session = QMediaCaptureSession()
-            self._capture_session.setCamera(self._camera)
-            self._capture_session.setImageCapture(self._image_capture)
+        self.camera_thread = CameraThread()
+        self.camera_thread.updateFrame.connect(self.set_image)
 
         main_layout = QHBoxLayout()
         main_layout.addLayout(self.left_layout)
-        main_layout.addWidget(self.viewfinder)
+        main_layout.addWidget(self.camera_view_label)
         self.setLayout(main_layout)
 
         self.take_picture_button.clicked.connect(self.take_picture)
         self.cancel_button.clicked.connect(self.cancel)
 
-        if self._camera and self._camera.error() == QCamera.NoError:
-            # name = self._camera_info.description()
-            # self.setWindowTitle(f"PySide6 Camera Example ({name})")
-            # self.show_status_message(f"Starting: '{name}'")
+    def enter_registration(self):
+        print("entering reg page")
+        self.camera_view_label.clear()
+        self.camera_thread.start()
 
-            self._capture_session.setVideoOutput(self.viewfinder)
-            self._camera.start()
-        else:
-            self.setWindowTitle("PySide6 Camera Example")
-            self.show_status_message("Camera unavailable")
+    def leave_registration(self):
+        print("leaving reg page")
+        self.camera_thread.quit()
+
+    @Slot(QImage)
+    def set_image(self, image):
+        self.camera_view_img = image
+        self.camera_view_label.setPixmap(QPixmap.fromImage(image))
     
     @Slot()
     def take_picture(self):
         print("taking picture...")
-        self._image_capture.captureToFile(self.picture_filename)
-
-    @Slot(int, str)
-    def image_saved(self, id, fileName):
         first_name = self.first_name_edit.text()
         last_name = self.last_name_edit.text()
-        self.gui_signals.setNewUserInfo.emit(first_name, last_name, self.picture_filename)
-        self.gui_signals.setPage.emit(2)
-
-    def closeEvent(self, event):
-        print("closing reg page")
-        if self._camera and self._camera.isActive():
-            self._camera.stop()
-
-    @Slot(int, QImageCapture.Error, str)
-    def _capture_error(self, id, error, error_string):
-        print(error_string, file=sys.stderr)
-
-    @Slot(QCamera.Error, str)
-    def _camera_error(self, error, error_string):
-        print(error_string, file=sys.stderr)
+        
+        self.leave_registration()
+        self.setRegistrationDetails.emit(first_name, last_name, self.camera_view_img)
 
     def cancel(self):
-        if self._camera and self._camera.isActive():
-            self._camera.stop()
-        self.gui_signals.setPage.emit(0)
+        self.leave_registration()
+        self.cancelRegistration.emit()
 
 
 class ConfirmationPage(QWidget):
-    def __init__(self, gui_signals):
+
+    cancelConfirmation = Signal()
+    retakeProfile = Signal()
+    confirmUserInfo = Signal()
+
+    def __init__(self, enterPageSignal):
         super().__init__()
 
-        self.gui_signals = gui_signals
-
-        self.gui_signals.setNewUserInfo.connect(self.update_preview)
+        enterPageSignal.connect(self.enter)
 
         main_layout = QHBoxLayout()
 
         self._confirm_text = QLabel("Does this look OK?")
         font = self._confirm_text.font()
-        font.setPointSize(18)
+        font.setPointSize(BODY_FONT_SIZE)
         self._confirm_text.setFont(font)
         self._confirm_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
         self._approve_button = QPushButton("Approve")
+        self._approve_button.setFixedHeight(BUTTON_HEIGHT)
         self._approve_button.clicked.connect(self.approve)
         self._retake_button = QPushButton("Retake")
+        self._retake_button.setFixedHeight(BUTTON_HEIGHT)
         self._retake_button.clicked.connect(self.retake)
         self._cancel_button = QPushButton("Cancel")
+        self._cancel_button.setFixedHeight(BUTTON_HEIGHT)
         self._cancel_button.clicked.connect(self.cancel)
 
         left_layout = QVBoxLayout()
@@ -213,18 +266,17 @@ class ConfirmationPage(QWidget):
 
         main_layout.addLayout(left_layout)
 
-        self._profile_picture = QLabel()
-        pictures_location = QStandardPaths.writableLocation(QStandardPaths.PicturesLocation)
-        self._profile_picture.setPixmap(QPixmap(f"{pictures_location}/tmp.jpg")) #TODO: init better
+        self._profile_picture = QLabel(self)
+        self._profile_picture.setFixedSize(PICTURE_VIEW_WIDTH, PICTURE_VIEW_HEIGHT)
         
         self._first_name = "NOINIT_FIRST"
         self._last_name = "NOINIT_LAST"
         self._profile_name = QLabel(f"Name: '{self._first_name} {self._last_name}'")
         font = self._profile_name.font()
-        font.setPointSize(18)
+        font.setPointSize(BODY_FONT_SIZE)
         self._profile_name.setFont(font)
         self._profile_name.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
-        self._profile_name.setFixedHeight(100)
+        self._profile_name.setFixedHeight(32)
 
         right_layout = QVBoxLayout()
 
@@ -233,6 +285,20 @@ class ConfirmationPage(QWidget):
 
         main_layout.addLayout(right_layout)
         self.setLayout(main_layout)
+
+    @Slot(str,str,QImage)
+    def enter(self, first_name, last_name, profile_picture):
+        print("entering conf page")
+        self._profile_picture.clear()
+
+        self._first_name = first_name
+        self._last_name = last_name
+        self._profile_name.setText(f"Name: '{self._first_name} {self._last_name}'")
+
+        self._profile_picture.setPixmap(QPixmap.fromImage(profile_picture))
+
+    def leave(self):
+        print("leaving conf page")
 
     @Slot(str,str,str)
     def update_preview(self, first_name, last_name, picture_filename):
@@ -245,49 +311,155 @@ class ConfirmationPage(QWidget):
     
     def approve(self):
         print("Approved!")
+        self.leave()
+        self.confirmUserInfo.emit()
 
     def retake(self):
-        self.gui_signals.setPage.emit(1)
-    
+        self.leave()
+        self.retakeProfile.emit()
+
     def cancel(self):
-        self.gui_signals.setPage.emit(0)
+        self.leave()
+        self.cancelRegistration.emit()
+
+
+class OrderPage(QWidget):
+    '''PySide widget implementing a simple demo ordering system.'''
+
+    cancelOrder = Signal()
+    dispatchOrder = Signal(int)
+
+    #TODO: we need to formalize the concept of a menu in the program
+    _menu_text = """Please enter an order ID:
+1 - Classic Arnold Palmer
+2 - Just Lemonade
+3 - A Bit of Everything"""
+
+    def __init__(self, enterPageSignal):
+        super().__init__()
+
+        enterPageSignal.connect(self.enter)
+
+        main_layout = QVBoxLayout()
+
+        self._order_text = QLabel(self._menu_text)
+        font = self._order_text.font()
+        font.setPointSize(BODY_FONT_SIZE)
+        self._order_text.setFont(font)
+        self._order_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
+
+        main_layout.addWidget(self._order_text)
+
+        self._order_id_edit = QLineEdit()
+        self._order_id_edit.setFixedWidth(240) #TODO: unhardcode
+
+        self._submit_button = QPushButton("Submit")
+        self._submit_button.setFixedHeight(BUTTON_HEIGHT)
+        self._submit_button.clicked.connect(self.submit)
+
+        self._cancel_button = QPushButton("Cancel")
+        self._cancel_button.setFixedHeight(BUTTON_HEIGHT)
+        self._cancel_button.clicked.connect(self.cancel)
+
+        bot_layout = QHBoxLayout()
+        bot_layout.addWidget(self._order_id_edit)
+
+        bot_right_sublayout = QVBoxLayout()
+        bot_right_sublayout.addWidget(self._submit_button)
+        bot_right_sublayout.addWidget(self._cancel_button)
+
+        bot_layout.addLayout(bot_right_sublayout)
+        main_layout.addLayout(bot_layout)
+        self.setLayout(main_layout)
+
+    def enter(self):
+        print("entering order page")
+
+    def leave(self):
+        print("leaving order page")
+    
+    def submit(self):
+        order_id = int(self._order_id_edit.text())
+        self.dispatchOrder.emit(order_id)
+
+    def cancel(self):
+        self.leave()
+        self.cancelOrder.emit()
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    enterIdle = Signal()
+    enterRegistration = Signal()
+    enterConfirmation = Signal(str,str,QImage)
+    enterOrder = Signal()
+
+    def __init__(self, ros_order_pub):
         super().__init__()
+        self.ros_order_pub = ros_order_pub
 
         self.setWindowTitle("Arnie Kiosk")
-
-        self.gui_signals = GuiSignals()
-        self.gui_signals.setPage.connect(self.set_page)
 
         self._stacked_widget = QStackedWidget()
         self.setCentralWidget(self._stacked_widget)
 
-        self._idle_page = IdlePage(self.gui_signals)
+        self._idle_page = IdlePage(self.enterIdle)
         self._stacked_widget.addWidget(self._idle_page)
+        self._idle_page.leaveIdle.connect(self.leave_idle)
 
-        self._registration_page = RegistrationPage(self.gui_signals)
+        self._registration_page = RegistrationPage(self.enterRegistration)
         self._stacked_widget.addWidget(self._registration_page)
+        self._registration_page.cancelRegistration.connect(self.cancel_to_idle)
+        self._registration_page.setRegistrationDetails.connect(self.intake_user_reg)
 
-        self._confirmation_page = ConfirmationPage(self.gui_signals)
+        self._confirmation_page = ConfirmationPage(self.enterConfirmation)
         self._stacked_widget.addWidget(self._confirmation_page)
+        self._confirmation_page.cancelConfirmation.connect(self.cancel_to_idle)
+        self._confirmation_page.retakeProfile.connect(self.retake_user_info)
+        self._confirmation_page.confirmUserInfo.connect(self.proceed_to_order)
+
+        self._order_page = OrderPage(self.enterOrder)
+        self._stacked_widget.addWidget(self._order_page)
+        self._order_page.cancelOrder.connect(self.cancel_to_idle)
+        self._order_page.dispatchOrder.connect(self.dispatch_order)
 
 
-    def closeEvent(self, event):
-        print('closing MainWindow')
-        self._registration_page.closeEvent(event)
+    def leave_idle(self):
+        #TODO: add logic here to select based on recoged/unrecoged face!
+        #TODO: need better scheme for indexing pages in __init__
+        self._stacked_widget.setCurrentIndex(1) #hardcoding reg page index
+        self.enterRegistration.emit()
+    
+    def cancel_to_idle(self):
+        self._stacked_widget.setCurrentIndex(0) #TODO: fix widget hardcode
+        self.enterIdle.emit()
+
+    @Slot(str,str,QImage)
+    def intake_user_reg(self, first_name, last_name, profile_picture):
+        self._stacked_widget.setCurrentIndex(2)
+        self.enterConfirmation.emit(first_name, last_name, profile_picture)
+
+    def retake_user_info(self):
+        self._stacked_widget.setCurrentIndex(1)
+        self.enterRegistration.emit()
+
+    def proceed_to_order(self):
+        self._stacked_widget.setCurrentIndex(3)
+        self.enterOrder.emit()
 
     @Slot(int)
-    def set_page(self, index):
-        print(f"trying to switch to index {index}")
-        self._confirmation_page.update_preview
-        self._stacked_widget.setCurrentIndex(index)
+    def dispatch_order(self, order_id):
+        print(f"ROS is a go for order_id={order_id}")
+        self.ros_order_pub.publish(UInt16(order_id))
 
 
 if __name__ == "__main__":
+    order_pub = rospy.Publisher("order", UInt16)
+
+    print("Blocking until registered with ROS master...")
+    rospy.init_node("kiosk")
+    print("Success! Registered with ROS master")
+
     app = QApplication()
-    window = MainWindow()
-    window.showMaximized()
-    sys.exit(app.exec())
+    window = MainWindow(order_pub)
+    window.show()
+    sys.exit(app.exec_())
