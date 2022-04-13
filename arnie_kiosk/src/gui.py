@@ -283,7 +283,7 @@ class ConfirmationPage(QWidget):
 
     def cancel(self):
         self.leave()
-        self.cancelRegistration.emit()
+        self.cancelConfirmation.emit()
 
 
 class OrderPage(QWidget):
