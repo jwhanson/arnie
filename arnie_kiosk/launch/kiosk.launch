@@ -1,0 +1,13 @@
+<launch>
+    <node
+    name="camera"
+    pkg="arnie_vision"
+    type="camera"
+    args="0"
+    output="screen"/>
+    <node
+    name="kiosk"
+    pkg="arnie_kiosk"
+    type="kiosk.py"
+    output="screen"/>
+</launch>

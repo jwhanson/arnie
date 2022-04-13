@@ -39,7 +39,9 @@ from PySide2.QtGui import (
 )
 import cv2
 import rospy
-from std_msgs.msg import UInt16
+import std_msgs.msg
+import sensor_msgs.msg
+from cv_bridge import CvBridge
 
 
 PICTURE_VIEW_WIDTH = 320
@@ -49,46 +51,12 @@ BODY_FONT_SIZE = 12
 BUTTON_HEIGHT = 48
 
 
-class CameraThread(QThread):
-    """A QThread for running an OpenCV video capture in the background.
-    Used by the Registration Page. This is kind of a hack of what a QThread
-    is designed to be (you can read more about QThread in the PySide docs).
-    I have overridden of the run() function to just be the code I want
-    executing, and overridden the quit() function to act as a soft kill for
-    run that allows the last loop to finish.
-    """
-    updateFrame = Signal(QImage)
-
+class RosThread(QThread):
     def __init__(self):
-        QThread.__init__(self)
-
+        super().__init__()
+    
     def run(self):
-        self.cap = cv2.VideoCapture(0)
-        self.keep_alive = True
-
-        while self.keep_alive:
-            ret, frame = self.cap.read()
-            if not ret:
-                continue
-
-            #transform frame
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame = cv2.flip(frame, 1)
-
-            #convert frame to img
-            h, w, ch = frame.shape
-            img = QImage(frame.data, w, h, ch*w, QImage.Format_RGB888)
-
-            #size down img
-            img = img.scaled(PICTURE_VIEW_WIDTH, PICTURE_VIEW_HEIGHT, Qt.KeepAspectRatio)
-
-            #emit img
-            self.updateFrame.emit(img)
-
-        self.cap.release()
-
-    def quit(self):
-        self.keep_alive = False
+        rospy.spin()
 
 
 class IdlePage(QWidget):
@@ -136,10 +104,11 @@ class RegistrationPage(QWidget):
     cancelRegistration = Signal()
     setRegistrationDetails = Signal(str,str,QImage)
 
-    def __init__(self, enterPageSignal):
+    def __init__(self, enterPageSignal, updateFrameSignal):
         super().__init__()
 
         enterPageSignal.connect(self.enter_registration)
+        updateFrameSignal.connect(self.set_image)
 
         #NOTE: getting a path we can actually write with is kinda funny:
         # QStandardPaths.PicturesLocation is a object that "knows" where 
@@ -190,9 +159,6 @@ class RegistrationPage(QWidget):
 
         self.camera_view_img = QImage()
 
-        self.camera_thread = CameraThread()
-        self.camera_thread.updateFrame.connect(self.set_image)
-
         main_layout = QHBoxLayout()
         main_layout.addLayout(self.left_layout)
         main_layout.addWidget(self.camera_view_label)
@@ -204,11 +170,9 @@ class RegistrationPage(QWidget):
     def enter_registration(self):
         print("entering reg page")
         self.camera_view_label.clear()
-        self.camera_thread.start()
 
     def leave_registration(self):
         print("leaving reg page")
-        self.camera_thread.quit()
 
     @Slot(QImage)
     def set_image(self, image):
@@ -388,6 +352,10 @@ class OrderPage(QWidget):
 
 
 class MainWindow(QMainWindow):
+    current_page_index = 0
+
+    updateFrame = Signal(QImage)
+
     enterIdle = Signal()
     enterRegistration = Signal()
     enterConfirmation = Signal(str,str,QImage)
@@ -395,7 +363,10 @@ class MainWindow(QMainWindow):
 
     def __init__(self, ros_order_pub):
         super().__init__()
+        self.bridge = CvBridge()
         self.ros_order_pub = ros_order_pub
+        self.ros_thread = RosThread()
+        self.ros_thread.start()
 
         self.setWindowTitle("Arnie Kiosk")
 
@@ -406,7 +377,7 @@ class MainWindow(QMainWindow):
         self._stacked_widget.addWidget(self._idle_page)
         self._idle_page.leaveIdle.connect(self.leave_idle)
 
-        self._registration_page = RegistrationPage(self.enterRegistration)
+        self._registration_page = RegistrationPage(self.enterRegistration, self.updateFrame)
         self._stacked_widget.addWidget(self._registration_page)
         self._registration_page.cancelRegistration.connect(self.cancel_to_idle)
         self._registration_page.setRegistrationDetails.connect(self.intake_user_reg)
@@ -422,38 +393,61 @@ class MainWindow(QMainWindow):
         self._order_page.cancelOrder.connect(self.cancel_to_idle)
         self._order_page.dispatchOrder.connect(self.dispatch_order)
 
+    def go_to_page(self, index):
+        self.current_page_index = index
+        self._stacked_widget.setCurrentIndex(index)
 
     def leave_idle(self):
         #TODO: add logic here to select based on recoged/unrecoged face!
         #TODO: need better scheme for indexing pages in __init__
-        self._stacked_widget.setCurrentIndex(1) #hardcoding reg page index
+        self.go_to_page(1) #hardcoding reg page index
         self.enterRegistration.emit()
     
     def cancel_to_idle(self):
-        self._stacked_widget.setCurrentIndex(0) #TODO: fix widget hardcode
+        self.go_to_page(0) #TODO: fix widget hardcode
         self.enterIdle.emit()
 
     @Slot(str,str,QImage)
     def intake_user_reg(self, first_name, last_name, profile_picture):
-        self._stacked_widget.setCurrentIndex(2)
+        self.go_to_page(2)
         self.enterConfirmation.emit(first_name, last_name, profile_picture)
 
     def retake_user_info(self):
-        self._stacked_widget.setCurrentIndex(1)
+        self.go_to_page(1)
         self.enterRegistration.emit()
 
     def proceed_to_order(self):
-        self._stacked_widget.setCurrentIndex(3)
+        self.go_to_page(3)
         self.enterOrder.emit()
 
     @Slot(int)
     def dispatch_order(self, order_id):
         print(f"ROS is a go for order_id={order_id}")
-        self.ros_order_pub.publish(UInt16(order_id))
+        self.ros_order_pub.publish(std_msgs.msg.UInt16(order_id))
+
+    def frame_callback(self, image_msg):
+        #only do this if we're on the reg page
+        if self.current_page_index == 1:
+            #get frame from msg
+            frame = self.bridge.imgmsg_to_cv2(image_msg)
+
+            #transform frame
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = cv2.flip(frame, 1)
+
+            #convert frame to img
+            h, w, ch = frame.shape
+            img = QImage(frame.data, w, h, ch*w, QImage.Format_RGB888)
+
+            #size down img
+            img = img.scaled(PICTURE_VIEW_WIDTH, PICTURE_VIEW_HEIGHT, Qt.KeepAspectRatio)
+
+            #emit img
+            self.updateFrame.emit(img)
 
 
 if __name__ == "__main__":
-    order_pub = rospy.Publisher("order", UInt16)
+    order_pub = rospy.Publisher("order", std_msgs.msg.UInt16)
 
     print("Blocking until registered with ROS master...")
     rospy.init_node("kiosk")
@@ -461,5 +455,6 @@ if __name__ == "__main__":
 
     app = QApplication()
     window = MainWindow(order_pub)
-    window.show()
+    rospy.Subscriber("frame", sensor_msgs.msg.Image, window.frame_callback)
+    window.show() #TODO: Make fullscreen after debug!
     sys.exit(app.exec_())
