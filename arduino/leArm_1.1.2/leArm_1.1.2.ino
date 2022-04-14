@@ -1,10 +1,21 @@
+/* leArm_1.1.2.ino
+ *
+ * Author:
+ * Kirk Boyd
+ * 
+ *
+ * Description:
+ * This is the code to run on the DFRObot Arduino Romeo in the front of Arnie.
+ * The Romeo controls the servos in the LeArm as well as reads both switched.
+ */
+
 #include <ros.h>
-#include <std_msgs/String.h> //for compatibility with ROS
+// pull in important message info for rosserial library Arduino compatibility
+#include <std_msgs/String.h> 
 #include <std_msgs/UInt16.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Empty.h>
 #include <Servo.h>
-//#include <Ramp.h>
 #define sw1 2 //pin for switch on end effector
 #define sw2 7 //pin for switch in receive plate
 #define servo0pin 3 //base servo pin
@@ -15,13 +26,16 @@
 #define relay2 11 //arduino digital pin
 #define relay3 12 //arduino digital pin
 #define relay4 13 //arduino digital pin
-Servo servo0; Servo servo1; Servo servo2; Servo servo3; //create servo objects for each servo for the library
+
+//create servo objects for each servo for the Servo library
+Servo servo0; Servo servo1; Servo servo2; Servo servo3;
 int getCup[] = {0,40,180,40}; // these are good positions to receive the cup
 bool orderUp = false; //whether we have the order and can start moving
 bool isPlaced = false; //has the cup been successfully placed on the platform?
 bool serving = false; //are we attempting to place cup and serve a drink?
 bool served = false; //are the valves done dispensing?
 bool sw1State;  bool sw2State; //stores whether switch is depressed or not
+
 /* Smoothing Variables */
 int goal0 = 90;       int goal1 = 90;       int goal2=90;         int goal3=90;
 float goal0smooth=90; float goal1smooth=90; float goal2smooth=90; float goal3smooth=90;
@@ -30,6 +44,8 @@ float ratio1 = 0.03; //ratio of goal position
 float ratio2 = 0.97; //ratio of previous position
 /* End Smoothing Variables */
 
+/* stupid workaround variables for positioning logic */
+// these should get reduced/removed/improved idk
 bool startedCounting = false;
 bool countingAgain = false;
 bool countingAgainAgain = false;
@@ -53,11 +69,11 @@ ros::NodeHandle nh;
 
 /* "order" topic */
 void orderCb(const std_msgs::UInt16& order_msg){
-  if (order_msg.data != 0){
-    orderUp = true;
+  if (order_msg.data != 0){ // if an order message is found in the topic
+    orderUp = true; // we can now move the arm
   }
   else{
-    orderUp = false;
+    orderUp = false; // we cannot move the arm
   }
 }
 ros::Subscriber<std_msgs::UInt16> sub1("order", orderCb);
@@ -78,15 +94,15 @@ ros::Publisher status("status", &status_msg);
 /* End ROS Setup */
 
 void setup() {
-    Serial.begin(9600); //for debug
+  Serial.begin(9600); //for debug
   pinMode(sw1, INPUT); pinMode(sw2, INPUT); //tell arduino the switches are inputs
-  pinMode(LED_BUILTIN,OUTPUT);
+  pinMode(LED_BUILTIN,OUTPUT); // for debug
   servo0.attach(servo0pin); servo1.attach(servo1pin); servo2.attach(servo2pin); servo3.attach(servo3pin);
-  nh.initNode();
-  nh.advertise(placed);
-  nh.advertise(status);
-  nh.subscribe(sub1);
-  nh.subscribe(sub2);
+  nh.initNode(); // start ROS node
+  nh.advertise(placed); // tell ROS master that we will publish to the "placed" topic
+  nh.advertise(status); // tell ROS master that we will publish to the "status" topic
+  nh.subscribe(sub1); // subscribe to the "order" topic
+  nh.subscribe(sub2); // subscribe to the "pla" topic
   home();
     Serial.println("Home");
   delay(1500); //wait 1.5 seconds to make sure servos are home
@@ -193,9 +209,6 @@ void loop() {
     goal1smooth = (goal1 * ratio1) + (goal1prev * ratio2);
     goal2smooth = (goal2 * ratio1) + (goal2prev * ratio2);
     goal3smooth = (goal3 * ratio1) + (goal3prev * ratio2);
-    //  Serial.print(goal0);
-    //  Serial.print(" , ");
-    //  Serial.println(goal0smooth);
     goal0prev = goal0smooth;
     goal1prev = goal1smooth;
     goal2prev = goal2smooth;
@@ -210,15 +223,15 @@ void loop() {
   }
   if (isPlaced) { digitalWrite(LED_BUILTIN, HIGH);}
   else{ digitalWrite(LED_BUILTIN, LOW);}
-  if (prevPlaced != isPlaced){
-    placed_msg.data = isPlaced;
-    placed.publish( &placed_msg);
+  if (prevPlaced != isPlaced){ // if the message has changed
+    placed_msg.data = isPlaced; // update actual ROS message variable
+    placed.publish( &placed_msg); // and publish it to the "status" topic
   }
   
   string_msg = status_string;
-  if(prevString != status_string){
-    status_msg.data = string_msg;
-    status.publish( &status_msg );
+  if(prevString != status_string){ // if the message has changed
+    status_msg.data = string_msg; // update actual ROS message variable
+    status.publish( &status_msg ); // and publish it to the "status" topic
   }
   
   nh.spinOnce();
