@@ -7,8 +7,8 @@ import sys
 import psycopg2
 import rospy
 import numpy as np
-from cv_bridge import CvBridge
 import cv2
+from cv_bridge import CvBridge
 import pickle
 from arnie_kiosk.srv import InsertUser
 
