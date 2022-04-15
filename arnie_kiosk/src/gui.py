@@ -36,11 +36,13 @@ from PySide2.QtGui import (
     QImage,
     QPixmap
 )
+import numpy as np
 import cv2
 import rospy
 import std_msgs.msg
 import sensor_msgs.msg
 from cv_bridge import CvBridge
+from arnie_kiosk.srv import InsertUser
 
 
 PICTURE_VIEW_WIDTH = 320
@@ -48,6 +50,19 @@ PICTURE_VIEW_HEIGHT = 240
 TITLE_FONT_SIZE = 16
 BODY_FONT_SIZE = 12
 BUTTON_HEIGHT = 48
+
+# https://stackoverflow.com/questions/18406149/pyqt-pyside-how-do-i-convert-qimage-into-opencvs-mat-format
+def convertQImageToMat(incomingImage):
+    '''Converts a QImage into an opencv MAT format'''
+
+    incomingImage = incomingImage.convertToFormat(QImage.Format_RGB32)
+    width = incomingImage.width()
+    height = incomingImage.height()
+    data = incomingImage.constBits()
+    arr = np.asarray(data)
+    image_arr = np.copy(arr).reshape(height,width,4)
+
+    return image_arr
 
 
 class RosThread(QThread):
@@ -196,7 +211,7 @@ class ConfirmationPage(QWidget):
 
     cancelConfirmation = Signal()
     retakeProfile = Signal()
-    confirmUserInfo = Signal()
+    confirmUserInfo = Signal(str,str,QImage)
 
     def __init__(self, enterPageSignal):
         super().__init__()
@@ -256,6 +271,7 @@ class ConfirmationPage(QWidget):
 
         self._first_name = first_name
         self._last_name = last_name
+        self._profile_picture_qimage = profile_picture
         self._profile_name.setText(f"Name: '{self._first_name} {self._last_name}'")
 
         self._profile_picture.setPixmap(QPixmap.fromImage(profile_picture))
@@ -275,7 +291,7 @@ class ConfirmationPage(QWidget):
     def approve(self):
         print("Approved!")
         self.leave()
-        self.confirmUserInfo.emit()
+        self.confirmUserInfo.emit(self._first_name, self._last_name, self._profile_picture_qimage)
 
     def retake(self):
         self.leave()
@@ -360,10 +376,11 @@ class MainWindow(QMainWindow):
     enterConfirmation = Signal(str,str,QImage)
     enterOrder = Signal()
 
-    def __init__(self, ros_order_pub):
+    def __init__(self, ros_order_pub, insert_user_sh):
         super().__init__()
         self.bridge = CvBridge()
         self.ros_order_pub = ros_order_pub
+        self.insert_user_sh = insert_user_sh
         self.ros_thread = RosThread()
         self.ros_thread.start()
 
@@ -385,7 +402,7 @@ class MainWindow(QMainWindow):
         self._stacked_widget.addWidget(self._confirmation_page)
         self._confirmation_page.cancelConfirmation.connect(self.cancel_to_idle)
         self._confirmation_page.retakeProfile.connect(self.retake_user_info)
-        self._confirmation_page.confirmUserInfo.connect(self.proceed_to_order)
+        self._confirmation_page.confirmUserInfo.connect(self.insert_user_info)
 
         self._order_page = OrderPage(self.enterOrder)
         self._stacked_widget.addWidget(self._order_page)
@@ -415,7 +432,16 @@ class MainWindow(QMainWindow):
         self.go_to_page(1)
         self.enterRegistration.emit()
 
-    def proceed_to_order(self):
+    @Slot(str,str,QImage)
+    def insert_user_info(self, first_name, last_name, profile_picture_qimage):
+        profile_picture_cv = convertQImageToMat(profile_picture_qimage)
+        print(type(profile_picture_cv))
+        profile_picture_msg = self.bridge.cv2_to_imgmsg(cvim=profile_picture_cv, encoding="passthrough")
+        try:
+            user_id = self.insert_user_sh(first_name, last_name, profile_picture_msg)
+            print(f"user_id: {user_id}")
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
         self.go_to_page(3)
         self.enterOrder.emit()
 
@@ -452,8 +478,15 @@ if __name__ == "__main__":
     rospy.init_node("kiosk")
     print("Success! Registered with ROS master")
 
+    print("Blocking until database services are available...")
+    rospy.wait_for_service('insert_user')
+    print("Success! Database services are ready")
+
+    #create service handle for calling service
+    insert_user_sh = rospy.ServiceProxy('insert_user', InsertUser)
+
     app = QApplication()
-    window = MainWindow(order_pub)
+    window = MainWindow(order_pub, insert_user_sh)
     rospy.Subscriber("frame", sensor_msgs.msg.Image, window.frame_callback)
     window.show() #TODO: Make fullscreen after debug!
     sys.exit(app.exec_())

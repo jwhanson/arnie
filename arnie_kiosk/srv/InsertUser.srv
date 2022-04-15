@@ -1,0 +1,5 @@
+string first_name
+string last_name
+sensor_msgs/Image profile_picture
+---
+uint32 id
