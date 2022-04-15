@@ -17,7 +17,11 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 {
     try
     {
-        cv::imshow("preview", cv_bridge::toCvShare(msg, "bgr8")->image);
+        cv::Mat image;
+        cv::Mat small_image;
+        image = cv_bridge::toCvShare(msg, "bgr8")->image;
+        cv::resize(image, small_image, cv::Size(360,240));
+        cv::imshow("preview", small_image);
         cv::waitKey(30);
     }
     catch(cv_bridge::Exception& e)
