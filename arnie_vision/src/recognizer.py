@@ -12,6 +12,7 @@ per second. This is cleaner than a) fiddling with subscribing and
 unsubscribing, and b) somehow slowing down the subscriber.
 '''
 #!/usr/bin/env python3
+import sys
 import face_recognition
 import cv2
 import numpy as np
@@ -21,6 +22,10 @@ import std_msgs.msg
 import sensor_msgs.msg
 from cv_bridge import CvBridge
 from time import time_ns
+from arnie_kiosk.srv import (
+    FetchUser,
+    FetchIds
+)
 
 NAME = "recognizer"
 USE_TEST_IMAGES = True
@@ -34,8 +39,10 @@ TEST_IMAGES_DIR = os.path.join(
 class ArnieRecognizer(object):
     '''Arnie face recognizer object.'''
 
-    def __init__(self, names_pub):
+    def __init__(self, names_pub, fetch_ids_sh=None, fetch_user_sh=None):
         self.names_pub = names_pub
+        self.fetch_ids_sh = fetch_ids_sh
+        self.fetch_user_sh = fetch_user_sh
         self.time_last_processed_ns = 0
         self.process_period_ns = int(1e9)
         self.bridge = CvBridge()
@@ -43,7 +50,8 @@ class ArnieRecognizer(object):
         self.known_face_encodings = []
         self.known_face_names = []
 
-        if USE_TEST_IMAGES:
+        if fetch_user_sh == None or fetch_ids_sh == None:
+            #use faces dir for debug
             for face_image_filename in os.listdir(TEST_IMAGES_DIR):
                 image = face_recognition.load_image_file(os.path.join(TEST_IMAGES_DIR, face_image_filename))
                 
@@ -52,7 +60,25 @@ class ArnieRecognizer(object):
                 self.known_face_encodings.append(face_encoding)
                 self.known_face_names.append(face_image_filename) #TODO: actually get name
         else:
-            raise(Exception("UNIMPLEMENTED"))
+            #get going from the database
+            try:
+                fetch_ids_response = self.fetch_ids_sh()
+                ids = fetch_ids_response.ids
+                # #check response data 
+                # print(f"({type(ids)}) ids: {ids}")
+                for user_id in ids:
+                    fetch_user_response = self.fetch_user_sh(user_id)
+                    first_name = fetch_user_response.first_name.data
+                    last_name = fetch_user_response.last_name.data
+                    profile_picture_msg = fetch_user_response.profile_picture
+                    profile_picture = self.bridge.imgmsg_to_cv2(profile_picture_msg)
+                    profile_picture = cv2.cvtColor(profile_picture, cv2.COLOR_BGR2RGB)
+
+                    face_encoding = face_recognition.face_encodings(profile_picture)[0]
+                    self.known_face_encodings.append(face_encoding)
+                    self.known_face_names.append(first_name+"_"+last_name)
+            except rospy.ServiceException as e:
+                print(f"Service call failed: {e}")
 
         self.face_locations = []
         self.face_encodings = []
@@ -110,7 +136,17 @@ class ArnieRecognizer(object):
 
 def main():
     pub = rospy.Publisher("recoged_names", std_msgs.msg.String)
-    recog = ArnieRecognizer(pub)
+
+    print("Blocking until database services are available...")
+    rospy.wait_for_service('fetch_ids')
+    rospy.wait_for_service('fetch_user')
+    print("Success! Database services are ready")
+
+    #create service handle for calling service
+    fetch_ids_sh = rospy.ServiceProxy('fetch_ids', FetchIds)
+    fetch_user_sh = rospy.ServiceProxy('fetch_user', FetchUser)
+
+    recog = ArnieRecognizer(pub, fetch_ids_sh, fetch_user_sh)
 
     rospy.init_node(NAME)
     rospy.Subscriber("frame", sensor_msgs.msg.Image, recog.frame_callback)

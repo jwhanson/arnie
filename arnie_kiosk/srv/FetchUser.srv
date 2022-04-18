@@ -1,0 +1,5 @@
+uint32 id
+---
+std_msgs/String first_name
+std_msgs/String last_name
+sensor_msgs/Image profile_picture

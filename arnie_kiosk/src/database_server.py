@@ -10,7 +10,12 @@ import numpy as np
 import cv2
 from cv_bridge import CvBridge
 import pickle
-from arnie_kiosk.srv import InsertUser
+import std_msgs.msg
+from arnie_kiosk.srv import (
+    InsertUser, InsertUserResponse,
+    FetchUser, FetchUserResponse,
+    FetchIds, FetchIdsResponse
+)
 
 
 SQL_CREATE_USERS_TABLE = """
@@ -43,6 +48,7 @@ class ArnieDatabaseServer(object):
         self.conn = psycopg2.connect(user="jon",
                                      password="jon",
                                      database="postgres")
+        self.bridge = CvBridge()
         self.create_users_table()
 
     def create_users_table(self):
@@ -50,7 +56,7 @@ class ArnieDatabaseServer(object):
         cursor.execute(SQL_CREATE_USERS_TABLE)
         self.conn.commit()
 
-    def fetch_user_ids(self):
+    def fetch_user_ids(self, request):
         fetch_user_ids_query = """SELECT user_id FROM users"""
 
         cursor = self.conn.cursor()
@@ -60,16 +66,11 @@ class ArnieDatabaseServer(object):
 
         user_ids = [ id for row in rows for id in row ]
 
-        return user_ids        
+        return FetchIdsResponse(user_ids)
 
     def insert_user(self, request):
         profile_picture = self.bridge.imgmsg_to_cv2(request.profile_picture)
         profile_picture_pickle = pickle.dumps(profile_picture)
-        # # Nice Debug Prints:
-        # print(request.first_name)
-        # print(request.last_name)
-        # cv2.imshow("insert", profile_picture)
-        # cv2.waitKey()
         insert_user_query = """INSERT INTO users(first_name,last_name,profile_picture) VALUES(%s,%s,%s) RETURNING user_id"""
         insert_user_payload = (request.first_name, request.last_name, profile_picture_pickle)
 
@@ -78,21 +79,26 @@ class ArnieDatabaseServer(object):
         user_id = cursor.fetchone()[0]
         self.conn.commit()
         cursor.close()
-
-        # self.check_user(user_id)
         
-        return user_id
+        return InsertUserResponse(user_id)
 
-    def fetch_user_entry(self, user_id):
-        fetch_user_entry_query = """SELECT user_id FROM users WHERE user_id=%s"""
-        fetch_user_entry_payload = user_id
+    def fetch_user_entry(self, request):
+        fetch_user_entry_query = """SELECT * FROM users WHERE user_id=%s"""
+        fetch_user_entry_payload = (request.id,)
 
         cursor = self.conn.cursor()
         cursor.execute(fetch_user_entry_query, fetch_user_entry_payload)
-        user_entry = cursor.fetchone()[0]
+        row = cursor.fetchall()[0]
         cursor.close()
 
-        return user_entry
+        first_name = std_msgs.msg.String(row[1])
+        last_name = std_msgs.msg.String(row[2])
+
+        profile_picture_pickle = bytes(row[3])
+        profile_picture = pickle.loads(profile_picture_pickle)
+        profile_picture_msg = self.bridge.cv2_to_imgmsg(profile_picture)
+
+        return FetchUserResponse(first_name, last_name, profile_picture_msg)
 
     def check_user(self, user_id):
         check_query = """SELECT * FROM users WHERE user_id=%s"""
@@ -124,7 +130,9 @@ def main():
     db_server = ArnieDatabaseServer()
 
     rospy.init_node('database_server')
-    s = rospy.Service('insert_user', InsertUser, db_server.insert_user)
+    rospy.Service('insert_user', InsertUser, db_server.insert_user)
+    rospy.Service('fetch_user', FetchUser, db_server.fetch_user_entry)
+    rospy.Service('fetch_ids', FetchIds, db_server.fetch_user_ids)
 
     rospy.spin()
 

@@ -11,6 +11,11 @@
     type="database_server.py"
     output="screen"/>
     <node
+    name="recognizer"
+    pkg="arnie_vision"
+    type="recognizer.py"
+    output="screen"/>
+    <node
     name="gui"
     pkg="arnie_kiosk"
     type="gui.py"

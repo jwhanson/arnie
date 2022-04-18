@@ -59,6 +59,8 @@ find_package(catkin REQUIRED COMPONENTS
 add_service_files(
   FILES
   InsertUser.srv
+  FetchUser.srv
+  FetchIds.srv
 )
 
 ## Generate actions in the 'action' folder
