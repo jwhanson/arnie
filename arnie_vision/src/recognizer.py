@@ -26,6 +26,9 @@ from arnie_kiosk.srv import (
     FetchUser,
     FetchIds
 )
+from arnie_vision.srv import (
+    AddFaceToRecog, AddFaceToRecogResponse
+)
 
 NAME = "recognizer"
 USE_TEST_IMAGES = True
@@ -86,6 +89,9 @@ class ArnieRecognizer(object):
 
     def do_recognition(self, frame):
         '''Main recognition sequence.'''
+        if not self.known_face_encodings:
+            return False
+
         #resize to 1/4 for faster processing
         small_frame = cv2.resize(frame, (0,0), fx=0.25, fy=0.25)
 
@@ -132,7 +138,16 @@ class ArnieRecognizer(object):
         frame = self.bridge.imgmsg_to_cv2(image_msg)
         self.do_recognition(frame)
         self.time_last_processed_ns = now_ns
-
+    
+    def add_new_face(self, request):
+        name = request.first_name+"_"+request.last_name
+        profile_picture_msg = request.profile_picture
+        profile_picture = self.bridge.imgmsg_to_cv2(profile_picture_msg)
+        profile_picture = cv2.cvtColor(profile_picture, cv2.COLOR_BGR2RGB)
+        face_encoding = face_recognition.face_encodings(profile_picture)[0]
+        self.known_face_encodings.append(face_encoding)
+        self.known_face_names.append(name)
+        return AddFaceToRecogResponse(True)
 
 def main():
     pub = rospy.Publisher("recoged_names", std_msgs.msg.String)
@@ -150,6 +165,7 @@ def main():
 
     rospy.init_node(NAME)
     rospy.Subscriber("frame", sensor_msgs.msg.Image, recog.frame_callback)
+    rospy.Service('add_face_to_recog', AddFaceToRecog, recog.add_new_face)
     rospy.spin()
 
 

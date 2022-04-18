@@ -42,7 +42,12 @@ import rospy
 import std_msgs.msg
 import sensor_msgs.msg
 from cv_bridge import CvBridge
-from arnie_kiosk.srv import InsertUser
+from arnie_kiosk.srv import (
+    InsertUser
+)
+from arnie_vision.srv import (
+    AddFaceToRecog
+)
 
 
 PICTURE_VIEW_WIDTH = 320
@@ -376,11 +381,12 @@ class MainWindow(QMainWindow):
     enterConfirmation = Signal(str,str,QImage)
     enterOrder = Signal()
 
-    def __init__(self, ros_order_pub, insert_user_sh):
+    def __init__(self, ros_order_pub, insert_user_sh, add_face_to_recog_sh):
         super().__init__()
         self.bridge = CvBridge()
         self.ros_order_pub = ros_order_pub
         self.insert_user_sh = insert_user_sh
+        self.add_face_to_recog_sh = add_face_to_recog_sh
         self.ros_thread = RosThread()
         self.ros_thread.start()
 
@@ -440,6 +446,7 @@ class MainWindow(QMainWindow):
         try:
             user_id = self.insert_user_sh(first_name, last_name, profile_picture_msg)
             print(f"user_id: {user_id}")
+            self.add_face_to_recog_sh(first_name, last_name, profile_picture_msg)
         except rospy.ServiceException as e:
             print(f"Service call failed: {e}")
         self.go_to_page(3)
@@ -480,13 +487,15 @@ if __name__ == "__main__":
 
     print("Blocking until database services are available...")
     rospy.wait_for_service('insert_user')
+    rospy.wait_for_service('add_face_to_recog')
     print("Success! Database services are ready")
 
     #create service handle for calling service
     insert_user_sh = rospy.ServiceProxy('insert_user', InsertUser)
+    add_face_to_recog_sh = rospy.ServiceProxy('add_face_to_recog', AddFaceToRecog)
 
     app = QApplication()
-    window = MainWindow(order_pub, insert_user_sh)
+    window = MainWindow(order_pub, insert_user_sh, add_face_to_recog_sh)
     rospy.Subscriber("frame", sensor_msgs.msg.Image, window.frame_callback)
     window.show() #TODO: Make fullscreen after debug!
     sys.exit(app.exec_())
