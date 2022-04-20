@@ -1,3 +1,11 @@
+"""Arnie Menu Maker Script
+Jonathan Hanson
+
+A quick-n-dirty way to place the menu into our postgres database.
+
+Be careful! When you change the menu you may break the relations between
+the menu and the orders tables!
+"""
 import psycopg2
 import toml
 import sys
