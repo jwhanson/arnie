@@ -79,7 +79,7 @@ class ArnieRecognizer(object):
 
                     face_encoding = face_recognition.face_encodings(profile_picture)[0]
                     self.known_face_encodings.append(face_encoding)
-                    self.known_face_names.append(first_name+"_"+last_name)
+                    self.known_face_names.append(str(user_id)+"_"+first_name+"_"+last_name)
             except rospy.ServiceException as e:
                 print(f"Service call failed: {e}")
 
@@ -140,7 +140,7 @@ class ArnieRecognizer(object):
         self.time_last_processed_ns = now_ns
     
     def add_new_face(self, request):
-        name = request.first_name+"_"+request.last_name
+        name = str(request.user_id)+"_"+request.first_name+"_"+request.last_name
         profile_picture_msg = request.profile_picture
         profile_picture = self.bridge.imgmsg_to_cv2(profile_picture_msg)
         profile_picture = cv2.cvtColor(profile_picture, cv2.COLOR_BGR2RGB)

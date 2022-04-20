@@ -78,16 +78,20 @@ class RosThread(QThread):
         rospy.spin()
 
 
-class IdlePage(QWidget):
+class StartPage(QWidget):
     """PySide Widget implementing the splash page for Arnie."""
-    leaveIdle = Signal()
+    leaveStart = Signal()
+    goToRegistration = Signal()
+    loginOrder = Signal()
+    guestOrder = Signal()
 
-    def __init__(self, enterPageSignal):
+    def __init__(self, enterPageSignal, updateRecognitionSignal):
         super().__init__()
 
         enterPageSignal.connect(self.enter_page)
+        updateRecognitionSignal.connect(self.update_recognition)
 
-        layout = QVBoxLayout()
+        main_layout = QVBoxLayout()
 
         self.title_text = QLabel("ArnieBot - The Original Iced Tea + Lemonade\nBeverage Service System")
         font = self.title_text.font()
@@ -95,15 +99,35 @@ class IdlePage(QWidget):
         self.title_text.setFont(font)
         self.title_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
-        self.prompt_text = QLabel("Touch anywhere to begin")
-        font = self.prompt_text.font()
+        self.recognition_text = QLabel("No faces detected...")
+        font = self.recognition_text.font()
         font.setPointSize(BODY_FONT_SIZE)
-        self.prompt_text.setFont(font)
-        self.prompt_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
+        self.recognition_text.setFont(font)
+        self.recognition_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
-        layout.addWidget(self.title_text)
-        layout.addWidget(self.prompt_text)
-        self.setLayout(layout)
+        self.new_user_button = QPushButton("Register")
+        self.new_user_button.setFixedHeight(BUTTON_HEIGHT)
+
+        self.existing_user_button = QPushButton("Login")
+        self.existing_user_button.setFixedHeight(BUTTON_HEIGHT)
+        self.existing_user_button.setEnabled(False)
+
+        self.guest_button = QPushButton("Guest")
+        self.guest_button.setFixedHeight(BUTTON_HEIGHT)
+
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.new_user_button)
+        button_layout.addWidget(self.existing_user_button)
+        button_layout.addWidget(self.guest_button)
+
+        main_layout.addWidget(self.title_text)
+        main_layout.addWidget(self.recognition_text)
+        main_layout.addLayout(button_layout)
+        self.setLayout(main_layout)
+
+        self.new_user_button.clicked.connect(self.register)
+        self.existing_user_button.clicked.connect(self.login)
+        self.guest_button.clicked.connect(self.guest_order)
     
     def enter_page(self):
         print('entering idle page')
@@ -111,10 +135,39 @@ class IdlePage(QWidget):
     def leave_page(self):
         print('leaving idle page')
 
+    @Slot(str)
+    def update_recognition(self, name_str):
+        if name_str == '_empty':
+            self.existing_user_button.setEnabled(False)
+            self.recognition_text.setText("No faces detected...")
+        elif name_str == '_multiple':
+            self.existing_user_button.setEnabled(False)
+            self.recognition_text.setText("Too many faces in frame!")
+        elif name_str == '_unknown':
+            self.existing_user_button.setEnabled(False)
+            self.recognition_text.setText("Welcome new user!")
+        else:
+            self.existing_user_button.setEnabled(True)
+            self.recognition_text.setText(f"Welcome back, {name_str}")
+
+        self.repaint()
+
+    def register(self):
+        self.leave_page()
+        self.goToRegistration.emit()
+    
+    def login(self):
+        self.leave_page()
+        self.loginOrder.emit()
+
+    def guest_order(self):
+        self.leave_page()
+        self.guestOrder.emit()
+
     def mousePressEvent(self, event):
         print("click...")
         self.leave_page()
-        self.leaveIdle.emit()
+        self.leaveStart.emit()
 
 
 class RegistrationPage(QWidget):
@@ -356,8 +409,9 @@ class OrderPage(QWidget):
         main_layout.addLayout(bot_layout)
         self.setLayout(main_layout)
 
-    def enter(self):
-        print("entering order page")
+    @Slot(int)
+    def enter(self, user_id):
+        print(f"entering order page; curr user {user_id}")
 
     def leave(self):
         print("leaving order page")
@@ -375,11 +429,12 @@ class MainWindow(QMainWindow):
     current_page_index = 0
 
     updateFrame = Signal(QImage)
+    updateRecognition = Signal(str)
 
-    enterIdle = Signal()
+    enterStart = Signal()
     enterRegistration = Signal()
     enterConfirmation = Signal(str,str,QImage)
-    enterOrder = Signal()
+    enterOrder = Signal(int)
 
     def __init__(self, ros_order_pub, insert_user_sh, add_face_to_recog_sh):
         super().__init__()
@@ -389,45 +444,66 @@ class MainWindow(QMainWindow):
         self.add_face_to_recog_sh = add_face_to_recog_sh
         self.ros_thread = RosThread()
         self.ros_thread.start()
+        self.active_user_id = None
 
         self.setWindowTitle("Arnie Kiosk")
 
         self._stacked_widget = QStackedWidget()
         self.setCentralWidget(self._stacked_widget)
 
-        self._idle_page = IdlePage(self.enterIdle)
-        self._stacked_widget.addWidget(self._idle_page)
-        self._idle_page.leaveIdle.connect(self.leave_idle)
+        # Page 0 | Start Page
+        self._start_page = StartPage(self.enterStart, self.updateRecognition)
+        self._stacked_widget.addWidget(self._start_page)
+        # self._start_page.leaveStart.connect(self.leave_start)
+        self._start_page.goToRegistration.connect(self.go_to_registration)
+        self._start_page.loginOrder.connect(self.login_and_order)
+        self._start_page.guestOrder.connect(self.guest_order)
 
+        # Page 1 | Registration Page
         self._registration_page = RegistrationPage(self.enterRegistration, self.updateFrame)
         self._stacked_widget.addWidget(self._registration_page)
-        self._registration_page.cancelRegistration.connect(self.cancel_to_idle)
+        self._registration_page.cancelRegistration.connect(self.cancel_to_start)
         self._registration_page.setRegistrationDetails.connect(self.intake_user_reg)
 
+        # Page 2 | Confirmation Page
         self._confirmation_page = ConfirmationPage(self.enterConfirmation)
         self._stacked_widget.addWidget(self._confirmation_page)
-        self._confirmation_page.cancelConfirmation.connect(self.cancel_to_idle)
+        self._confirmation_page.cancelConfirmation.connect(self.cancel_to_start)
         self._confirmation_page.retakeProfile.connect(self.retake_user_info)
         self._confirmation_page.confirmUserInfo.connect(self.insert_user_info)
 
+        # Page 3 | Order Page
         self._order_page = OrderPage(self.enterOrder)
         self._stacked_widget.addWidget(self._order_page)
-        self._order_page.cancelOrder.connect(self.cancel_to_idle)
+        self._order_page.cancelOrder.connect(self.cancel_to_start)
         self._order_page.dispatchOrder.connect(self.dispatch_order)
 
     def go_to_page(self, index):
         self.current_page_index = index
         self._stacked_widget.setCurrentIndex(index)
 
-    def leave_idle(self):
-        #TODO: add logic here to select based on recoged/unrecoged face!
-        #TODO: need better scheme for indexing pages in __init__
+    # def leave_idle(self):
+    #     #TODO: add logic here to select based on recoged/unrecoged face!
+    #     #TODO: need better scheme for indexing pages in __init__
+    #     self.go_to_page(1) #hardcoding reg page index
+    #     self.enterRegistration.emit()
+    
+    def go_to_registration(self):
         self.go_to_page(1) #hardcoding reg page index
         self.enterRegistration.emit()
     
-    def cancel_to_idle(self):
+    def login_and_order(self):
+        if self.active_user_id != None:
+            self.go_to_page(3) #hardcoding order page index
+            self.enterOrder.emit(self.active_user_id)
+
+    def guest_order(self):
+        self.go_to_page(3) #hardcoding order page index
+        self.enterOrder.emit(0) #zero represents the guest user
+
+    def cancel_to_start(self):
         self.go_to_page(0) #TODO: fix widget hardcode
-        self.enterIdle.emit()
+        self.enterStart.emit()
 
     @Slot(str,str,QImage)
     def intake_user_reg(self, first_name, last_name, profile_picture):
@@ -444,13 +520,16 @@ class MainWindow(QMainWindow):
         print(type(profile_picture_cv))
         profile_picture_msg = self.bridge.cv2_to_imgmsg(cvim=profile_picture_cv, encoding="passthrough")
         try:
-            user_id = self.insert_user_sh(first_name, last_name, profile_picture_msg)
-            print(f"user_id: {user_id}")
-            self.add_face_to_recog_sh(first_name, last_name, profile_picture_msg)
+            response = self.insert_user_sh(first_name, last_name, profile_picture_msg)
+            user_id = response.user_id
+            print(f"({type(user_id)})user_id: {user_id}")
+            self.add_face_to_recog_sh(user_id, first_name, last_name, profile_picture_msg)
+            self.go_to_page(3)
+            self.enterOrder.emit(user_id)
         except rospy.ServiceException as e:
             print(f"Service call failed: {e}")
-        self.go_to_page(3)
-        self.enterOrder.emit()
+            self.go_to_page(0)
+            self.enterStart.emit()
 
     @Slot(int)
     def dispatch_order(self, order_id):
@@ -476,6 +555,27 @@ class MainWindow(QMainWindow):
 
             #emit img
             self.updateFrame.emit(img)
+    
+    def recoged_names_callback(self, string_msg):
+        #only do this if we're on the start page
+        if self.current_page_index == 0:
+            recoged_names_messy = string_msg.data.strip('][').split(', ') #split out names
+            recoged_names = [name.strip('\'"') for name in recoged_names_messy] #strip off quotes
+            if '' in recoged_names:
+                recoged_names.remove('')
+
+            if len(recoged_names) == 0:
+                self.updateRecognition.emit('_empty')
+            elif len(recoged_names) == 1:
+                long_name = recoged_names_messy[0].strip('\'"') #strip off quotes
+                if long_name == 'Unknown':
+                    self.updateRecognition.emit("_unknown")
+                else:
+                    user_id, first_name, last_name = long_name.split('_')
+                    self.active_user_id = int(user_id)
+                    self.updateRecognition.emit(" ".join([first_name, last_name]))
+            elif len(recoged_names) == 2:
+                self.updateRecognition.emit('_multiple')
 
 
 if __name__ == "__main__":
@@ -497,5 +597,6 @@ if __name__ == "__main__":
     app = QApplication()
     window = MainWindow(order_pub, insert_user_sh, add_face_to_recog_sh)
     rospy.Subscriber("frame", sensor_msgs.msg.Image, window.frame_callback)
+    rospy.Subscriber("recoged_names", std_msgs.msg.String, window.recoged_names_callback)
     window.show() #TODO: Make fullscreen after debug!
     sys.exit(app.exec_())
