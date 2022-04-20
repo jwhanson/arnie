@@ -108,7 +108,6 @@ void setup() {
   delay(1500); //wait 1.5 seconds to make sure servos are home
 }// end void setup()
 
-
 void loop() {
   sw1State = !digitalRead(sw1); //buttons read high when pressed, so we invert them 
   sw2State = !digitalRead(sw2); //which makes pressed = true and not pressed = false
@@ -237,30 +236,3 @@ void loop() {
   nh.spinOnce();
   delay(15);
 } //end void loop()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-void printServos(){
-  Serial.print("joint0 reading: ");
-  Serial.print(servo0.read());
-  Serial.print("\t | joint1 reading: ");
-  Serial.print(servo1.read());
-  Serial.print("\t | joint2 reading: ");
-  Serial.print(servo2.read());
-  Serial.print("\t | joint3 reading: ");
-  Serial.println(servo3.read());
-}
-
-
-/* GRAVEYARD */
