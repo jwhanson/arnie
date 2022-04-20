@@ -151,9 +151,9 @@ void loop() {
     }
     else if(startedCounting && countingAgain && !countingAgainAgain && timer + waitTime <= millis() && !sw2State && timer2 + waitTime2 <= millis()){
       // get closer to platform
-      goal0 = 160;
-      goal1 = 55;
-      goal2 = 150;
+      goal0 = 180;
+      goal1 = 70;
+      goal2 = 180;
       isPlaced = false;
       timer3 = millis();
       countingAgainAgain = true;
@@ -183,7 +183,7 @@ void loop() {
     else if(served && counting4 && timer4 + waitTime2 <= millis() && !done && !counting5){
       // pass drink back to user
       goal0 = 180;
-      goal1 = 60;
+      goal1 = 80;
       goal2 = 180;
       isPlaced = true;
 //      status_string = "Moving back to user, step 1";
