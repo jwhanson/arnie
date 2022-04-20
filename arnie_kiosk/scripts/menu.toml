@@ -1,0 +1,39 @@
+[[items]]
+name = "Classic Sweet Arnie"
+ingredients = "sweet tea,lemonade"
+
+[[items]]
+name = "Classic Arnie"
+ingredients = "unsweet tea,lemonade"
+
+[[items]]
+name = "Pink Sweet Arnie"
+ingredients = "sweet tea,pink lemonade"
+
+[[items]]
+name = "Pink Arnie"
+ingredients = "unsweet tea,pink lemonade"
+
+[[items]]
+name = "Sweet Tea"
+ingredients = "sweet tea"
+
+[[items]]
+name = "Unsweet Tea"
+ingredients = "unsweet tea"
+
+[[items]]
+name = "Lemonade"
+ingredients = "lemonade"
+
+[[items]]
+name = "Pink Lemonade"
+ingredients = "pink lemonade"
+
+[[items]]
+name = "Half 'n Half Tea"
+ingredients = "sweet tea,unsweet tea"
+
+[[items]]
+name = "All the Fixin's"
+ingredients = "sweet tea,unsweet tea,lemonade,pink lemonade"

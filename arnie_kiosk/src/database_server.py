@@ -34,13 +34,6 @@ CREATE TABLE IF NOT EXISTS orders (
     menu_id INTEGER
 );"""
 
-SQL_CREATE_MENU_TABLE = """
-CREATE TABLE IF NOT EXISTS menu (
-    item_id SERIAL PRIMARY KEY,
-    name TEXT,
-    ingredients TEXT
-);"""
-
 
 class ArnieDatabaseServer(object):
     def __init__(self):
