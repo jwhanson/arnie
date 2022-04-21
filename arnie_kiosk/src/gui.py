@@ -425,16 +425,82 @@ class OrderPage(QWidget):
         self.cancelOrder.emit()
 
 
+class WaitPage(QWidget):
+    '''PySide widget implementing a simple wait screen.'''
+
+    returnToMenu = Signal()
+
+    def __init__(self, enterPageSignal, doneWaitingSignal):
+        super().__init__()
+
+        enterPageSignal.connect(self.enter)
+        doneWaitingSignal.connect(self.done_waiting)
+        
+        #controls whether user can tap to continue
+        self.served = False
+
+        # Header Wait Text | QLabel
+        self._wait_header_text = QLabel("Please wait,")
+        font = self._wait_header_text.font()
+        font.setPointSize(TITLE_FONT_SIZE)
+        self._wait_header_text.setFont(font)
+        self._wait_header_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
+
+        # Body Wait Text | QLabel
+        self._wait_body_text = QLabel("Arnie is preparing your beverage")
+        font = self._wait_body_text.font()
+        font.setPointSize(BODY_FONT_SIZE)
+        self._wait_body_text.setFont(font)
+        self._wait_body_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
+
+        # Set Layout
+        layout = QVBoxLayout()
+        layout.addWidget(self._wait_header_text)
+        layout.addWidget(self._wait_body_text)
+        self.setLayout(layout)
+
+    def enter(self):
+        print("entering wait page")
+        self.served = False
+
+    def leave(self):
+        print("leaving wait page")
+
+    def done_waiting(self):
+        self.served = True
+
+        # update text
+        self._wait_header_text.setText("Enjoy!")
+        font = self._wait_header_text.font()
+        font.setFamily("Pacifico")
+        font.setPointSize(72) #TODO: fix hardcoded size
+        self._wait_header_text.setFont(font)
+
+        self._wait_body_text.setText("Tap anywhere to return to the main menu.")
+        font = self._wait_body_text.font()
+        font.setPointSize(BODY_FONT_SIZE)
+        self._wait_body_text.setFont(font)
+    
+    def mousePressEvent(self, event):
+        if self.served == True:
+            print("click...")
+            self.leave()
+            self.returnToMenu.emit()
+
+
 class MainWindow(QMainWindow):
     current_page_index = 0
 
     updateFrame = Signal(QImage)
     updateRecognition = Signal(str)
 
+    doneWaiting = Signal()
+
     enterStart = Signal()
     enterRegistration = Signal()
     enterConfirmation = Signal(str,str,QImage)
     enterOrder = Signal(int)
+    enterWait = Signal()
 
     def __init__(self, ros_order_pub, insert_user_sh, add_face_to_recog_sh):
         super().__init__()
@@ -454,7 +520,6 @@ class MainWindow(QMainWindow):
         # Page 0 | Start Page
         self._start_page = StartPage(self.enterStart, self.updateRecognition)
         self._stacked_widget.addWidget(self._start_page)
-        # self._start_page.leaveStart.connect(self.leave_start)
         self._start_page.goToRegistration.connect(self.go_to_registration)
         self._start_page.loginOrder.connect(self.login_and_order)
         self._start_page.guestOrder.connect(self.guest_order)
@@ -462,32 +527,36 @@ class MainWindow(QMainWindow):
         # Page 1 | Registration Page
         self._registration_page = RegistrationPage(self.enterRegistration, self.updateFrame)
         self._stacked_widget.addWidget(self._registration_page)
-        self._registration_page.cancelRegistration.connect(self.cancel_to_start)
+        self._registration_page.cancelRegistration.connect(self.go_to_start)
         self._registration_page.setRegistrationDetails.connect(self.intake_user_reg)
 
         # Page 2 | Confirmation Page
         self._confirmation_page = ConfirmationPage(self.enterConfirmation)
         self._stacked_widget.addWidget(self._confirmation_page)
-        self._confirmation_page.cancelConfirmation.connect(self.cancel_to_start)
+        self._confirmation_page.cancelConfirmation.connect(self.go_to_start)
         self._confirmation_page.retakeProfile.connect(self.retake_user_info)
         self._confirmation_page.confirmUserInfo.connect(self.insert_user_info)
 
         # Page 3 | Order Page
         self._order_page = OrderPage(self.enterOrder)
         self._stacked_widget.addWidget(self._order_page)
-        self._order_page.cancelOrder.connect(self.cancel_to_start)
+        self._order_page.cancelOrder.connect(self.go_to_start)
         self._order_page.dispatchOrder.connect(self.dispatch_order)
 
+        # Page 4 | Wait Page
+        self._wait_page = WaitPage(self.enterWait, self.doneWaiting)
+        self._stacked_widget.addWidget(self._wait_page)
+        self._wait_page.returnToMenu.connect(self.go_to_start)
+
     def go_to_page(self, index):
+        """Simple helper function to track the page index."""
         self.current_page_index = index
         self._stacked_widget.setCurrentIndex(index)
 
-    # def leave_idle(self):
-    #     #TODO: add logic here to select based on recoged/unrecoged face!
-    #     #TODO: need better scheme for indexing pages in __init__
-    #     self.go_to_page(1) #hardcoding reg page index
-    #     self.enterRegistration.emit()
-    
+    def go_to_start(self):
+        self.go_to_page(0)
+        self.enterStart.emit()
+
     def go_to_registration(self):
         self.go_to_page(1) #hardcoding reg page index
         self.enterRegistration.emit()
@@ -500,10 +569,6 @@ class MainWindow(QMainWindow):
     def guest_order(self):
         self.go_to_page(3) #hardcoding order page index
         self.enterOrder.emit(0) #zero represents the guest user
-
-    def cancel_to_start(self):
-        self.go_to_page(0) #TODO: fix widget hardcode
-        self.enterStart.emit()
 
     @Slot(str,str,QImage)
     def intake_user_reg(self, first_name, last_name, profile_picture):
@@ -535,6 +600,8 @@ class MainWindow(QMainWindow):
     def dispatch_order(self, order_id):
         print(f"ROS is a go for order_id={order_id}")
         self.ros_order_pub.publish(std_msgs.msg.UInt16(order_id))
+        self.go_to_page(4) #wait page
+        self.enterWait.emit()
 
     def frame_callback(self, image_msg):
         #only do this if we're on the reg page
@@ -576,6 +643,12 @@ class MainWindow(QMainWindow):
                     self.updateRecognition.emit(" ".join([first_name, last_name]))
             elif len(recoged_names) == 2:
                 self.updateRecognition.emit('_multiple')
+    
+    def served_callback(self, served_msg):
+        #only do this if we're on the wait page
+        if self.current_page_index == 4:
+            if served_msg.data == True:
+                self.doneWaiting.emit()
 
 
 if __name__ == "__main__":
@@ -598,5 +671,6 @@ if __name__ == "__main__":
     window = MainWindow(order_pub, insert_user_sh, add_face_to_recog_sh)
     rospy.Subscriber("frame", sensor_msgs.msg.Image, window.frame_callback)
     rospy.Subscriber("recoged_names", std_msgs.msg.String, window.recoged_names_callback)
+    rospy.Subscriber("served", std_msgs.msg.Bool, window.served_callback)
     window.show() #TODO: Make fullscreen after debug!
     sys.exit(app.exec_())
