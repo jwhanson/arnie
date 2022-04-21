@@ -508,6 +508,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, ros_order_pub, insert_user_sh, insert_order_sh, add_face_to_recog_sh):
         super().__init__()
+        # ROS setup
         self.bridge = CvBridge()
         self.ros_order_pub = ros_order_pub
         self.insert_user_sh = insert_user_sh
@@ -515,10 +516,13 @@ class MainWindow(QMainWindow):
         self.add_face_to_recog_sh = add_face_to_recog_sh
         self.ros_thread = RosThread()
         self.ros_thread.start()
+
+        # Tracks user_id of active user
         self.active_user_id = None
 
         self.setWindowTitle("Arnie Kiosk")
 
+        # Stacked Widget is how we organize pages
         self._stacked_widget = QStackedWidget()
         self.setCentralWidget(self._stacked_widget)
 
@@ -622,6 +626,7 @@ class MainWindow(QMainWindow):
         self.enterWait.emit()
 
     def frame_callback(self, image_msg):
+        '''ROS Sub Callback for the /frame topic'''
         #only do this if we're on the reg page
         if self.current_page_index == 1:
             #get frame from msg
@@ -642,6 +647,7 @@ class MainWindow(QMainWindow):
             self.updateFrame.emit(img)
     
     def recoged_names_callback(self, string_msg):
+        '''ROS Sub Callback for the /recoged_names topic'''
         #only do this if we're on the start page
         if self.current_page_index == 0:
             recoged_names_messy = string_msg.data.strip('][').split(', ') #split out names
@@ -663,6 +669,7 @@ class MainWindow(QMainWindow):
                 self.updateRecognition.emit('_multiple')
     
     def served_callback(self, served_msg):
+        '''ROS Sub Callback for the /served topic'''
         #only do this if we're on the wait page
         if self.current_page_index == 4:
             if served_msg.data == True:
