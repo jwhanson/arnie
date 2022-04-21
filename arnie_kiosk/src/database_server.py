@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """ Arnie Database ROS Service Server
 
-following: https://pynative.com/python-postgresql-tutorial/#h-perform-postgresql-crud-operations-from-python
+A central class manages the PostgreSQL database connection, and serves insert and fetch queries
+as ROS services for other nodes.
 """
 import sys
 import psycopg2

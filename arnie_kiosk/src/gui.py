@@ -365,21 +365,51 @@ class ConfirmationPage(QWidget):
 
 
 class MenuButton(QPushButton):
-    def __init__(self, button_text):
-        super().__init__(button_text)
+    def __init__(self, button_text, dispatchOrderSignal):
+        super().__init__()
+
+        self.dispatchOrderSignal = dispatchOrderSignal
+
         self.setFixedHeight(90) #TODO no hard code?
         self.setEnabled(False)
+        self.item_id = 0
+
+        self.clicked.connect(self.order_item)
+
+        self.set_display_text(button_text)
+
+    def set_item_id(self, item_id):
+        self.item_id = item_id
+
+    def order_item(self):
+        self.dispatchOrderSignal.emit(self.item_id)
+
+    def set_display_text(self, button_text):
+        '''Accomplish a word-wrap like effect for button text.'''
+        max_chars = 12
+        line_chars = 0
+        display_text = ''
+        for word in button_text.split(" "):
+            line_chars += len(word)+1
+            if line_chars <= max_chars:
+                display_text = " ".join([display_text, word])
+            else:
+                display_text = "\n".join([display_text, word])
+                line_chars = 0
+        display_text = display_text.strip(" ")
+
+        self.setText(display_text)
 
 
 class SpecialMenu(QWidget):
-    def __init__(self):
+    def __init__(self, dispatchOrderSignal):
         super().__init__()
 
         #TODO: something special
         # for now just put menu item 1
 
         # Special Item Button | MenuButton
-        self.special_button = MenuButton('S')
+        self.special_button = MenuButton('S', dispatchOrderSignal)
 
         # Special Item Text | QLabel
         self.special_text = QLabel("could be specialer")
@@ -392,7 +422,7 @@ class SpecialMenu(QWidget):
 
 
 class NormalMenu(QWidget):
-    def __init__(self, fetch_menu_item_ids_sh, fetch_menu_item_sh):
+    def __init__(self, dispatchOrderSignal, fetch_menu_item_ids_sh, fetch_menu_item_sh):
         super().__init__()
         
         # Setup menu via ROS service handle database calls
@@ -410,9 +440,8 @@ class NormalMenu(QWidget):
         # Setup Generic MenuButtons
         self.menu_buttons = []
         for i in range(num_rows*num_cols):
-            menu_button = MenuButton(f"{i+1}")
+            menu_button = MenuButton(f"{i+1}", dispatchOrderSignal)
             self.menu_buttons.append(menu_button)
-
 
         # Upper layout (3 buttons in a row)
         upper_layout = QHBoxLayout()
@@ -475,10 +504,11 @@ class NormalMenu(QWidget):
             menu_index = i + self.current_page*self.items_per_page
             if menu_index < len(self.menu):
                 item_id = list(self.menu.keys())[menu_index]
-                self.menu_buttons[i].setText(self.menu[item_id])
+                self.menu_buttons[i].set_display_text(self.menu[item_id])
                 self.menu_buttons[i].setEnabled(True)
+                self.menu_buttons[i].set_item_id(item_id)
             else:
-                self.menu_buttons[i].setText("N/A")
+                self.menu_buttons[i].set_display_text("N/A")
                 self.menu_buttons[i].setEnabled(False)
 
     def scroll_left(self):
@@ -508,10 +538,10 @@ class OrderPage(QWidget):
         self._order_text.setAlignment(Qt.AlignVCenter) #default align left?
 
         # Special Menu Object | QWidget (Custom)
-        self.special_menu = SpecialMenu()
+        self.special_menu = SpecialMenu(self.dispatchOrder)
 
         # Normal Menu Object | QWidget (Custom)
-        self.normal_menu = NormalMenu(fetch_menu_item_ids_sh, fetch_menu_item_sh)
+        self.normal_menu = NormalMenu(self.dispatchOrder, fetch_menu_item_ids_sh, fetch_menu_item_sh)
 
         # Core Menu Layout (special menu left, normal menu right)
         core_layout = QHBoxLayout()
@@ -538,18 +568,19 @@ class OrderPage(QWidget):
         main_layout.addLayout(bottom_button_layout)
         self.setLayout(main_layout)
 
-    @Slot(int)
-    def enter(self, user_id):
+    @Slot(int,str)
+    def enter(self, user_id, user_name):
         print(f"entering order page; curr user {user_id}")
+        first_name = user_name.split(" ")[0]
+        if first_name == '':
+            self._order_text.setText(f"Please select a beverage and tap 'Submit'")
+        else:
+            self._order_text.setText(f"Thanks {first_name}, please select a beverage and tap 'Submit'")
+            
         self.normal_menu.set_page(0) #reset the normal menu widget
 
     def leave(self):
         print("leaving order page")
-    
-    def submit(self):
-        #TODO
-        order_id = "TODO"
-        self.dispatchOrder.emit(order_id)
 
     def cancel(self):
         self.leave()
@@ -571,16 +602,18 @@ class WaitPage(QWidget):
         self.served = False
 
         # Header Wait Text | QLabel
-        self._wait_header_text = QLabel("Please wait,")
+        self._wait_header_text = QLabel("UNINITIALIZED")
         font = self._wait_header_text.font()
         font.setPointSize(TITLE_FONT_SIZE)
+        self._default_title_font = font #there's a better way to modularize this
         self._wait_header_text.setFont(font)
         self._wait_header_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
         # Body Wait Text | QLabel
-        self._wait_body_text = QLabel("Arnie is preparing your beverage")
+        self._wait_body_text = QLabel("UNINITIALIZED")
         font = self._wait_body_text.font()
         font.setPointSize(BODY_FONT_SIZE)
+        self._default_body_font = font #there's a better way to modularize this
         self._wait_body_text.setFont(font)
         self._wait_body_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
@@ -593,6 +626,13 @@ class WaitPage(QWidget):
     def enter(self):
         print("entering wait page")
         self.served = False
+
+        # update text
+        self._wait_header_text.setText("Please wait,")
+        self._wait_header_text.setFont(self._default_title_font)
+
+        self._wait_body_text.setText("Arnie is preparing your beverage")
+        self._wait_body_text.setFont(self._default_body_font)
 
     def leave(self):
         print("leaving wait page")
@@ -630,7 +670,7 @@ class MainWindow(QMainWindow):
     enterStart = Signal()
     enterRegistration = Signal()
     enterConfirmation = Signal(str,str,QImage)
-    enterOrder = Signal(int)
+    enterOrder = Signal(int,str)
     enterWait = Signal()
 
     def __init__(self, ros_order_pub, insert_user_sh, insert_order_sh, add_face_to_recog_sh, fetch_menu_item_ids_sh, fetch_menu_item_sh):
@@ -644,8 +684,9 @@ class MainWindow(QMainWindow):
         self.ros_thread = RosThread()
         self.ros_thread.start()
 
-        # Tracks user_id of active user
+        # Tracks active user
         self.active_user_id = None
+        self.active_user_name = None
 
         self.setWindowTitle("Arnie Kiosk")
 
@@ -701,19 +742,20 @@ class MainWindow(QMainWindow):
     def login_and_order(self):
         if self.active_user_id != None:
             self.go_to_page(3) #hardcoding order page index
-            self.enterOrder.emit(self.active_user_id)
+            self.enterOrder.emit(self.active_user_id, self.active_user_name)
 
     def guest_order(self):
         self.go_to_page(3) #hardcoding order page index
-        self.enterOrder.emit(0) #zero represents the guest user
+        self.active_user_id = 0 #order here is important: I need to update the page, then reset the user_id, then run order page's setup
+        self.enterOrder.emit(0, '') #zero represents the guest user
 
     @Slot(str,str,QImage)
     def intake_user_reg(self, first_name, last_name, profile_picture):
-        self.go_to_page(2)
+        self.go_to_page(2) #confirmation page
         self.enterConfirmation.emit(first_name, last_name, profile_picture)
 
     def retake_user_info(self):
-        self.go_to_page(1)
+        self.go_to_page(1) #registration page
         self.enterRegistration.emit()
 
     @Slot(str,str,QImage)
@@ -726,14 +768,21 @@ class MainWindow(QMainWindow):
             user_id = response.user_id
             print(f"({type(user_id)})user_id: {user_id}")
             self.add_face_to_recog_sh(user_id, first_name, last_name, profile_picture_msg)
-            self.go_to_page(3)
-            self.enterOrder.emit(user_id)
+            self.go_to_page(3) #order page
+            self.active_user_id = user_id
+            self.active_user_name = " ".join([first_name, last_name])
+            self.enterOrder.emit(self.active_user_id, self.active_user_name)
         except rospy.ServiceException as e:
             print(f"Service call failed: {e}")
             self.go_to_start()
 
     @Slot(int)
     def dispatch_order(self, item_id):
+        #do nothing if item_id invalid
+        if not item_id > 0:
+            print('MW: bad order_id, no dispatch')
+            return
+
         # If this is a registered user, then try the database interaction
         if self.active_user_id > 0:
             try:
@@ -745,9 +794,9 @@ class MainWindow(QMainWindow):
                 self.go_to_start()
                 return
 
-        #publish the new order to ROS
-        self.ros_order_pub.publish(std_msgs.msg.UInt16(order_id))
-        print(f"ROS is a go for order_id={order_id}")
+        #publish the item_id as a new order to ROS
+        self.ros_order_pub.publish(std_msgs.msg.UInt16(item_id))
+        print(f"ROS is a go for item_id={item_id}")
         self.go_to_page(4) #wait page
         self.enterWait.emit()
 
@@ -790,7 +839,8 @@ class MainWindow(QMainWindow):
                 else:
                     user_id, first_name, last_name = long_name.split('_')
                     self.active_user_id = int(user_id)
-                    self.updateRecognition.emit(" ".join([first_name, last_name]))
+                    self.active_user_name = " ".join([first_name, last_name])
+                    self.updateRecognition.emit(self.active_user_name)
             elif len(recoged_names) == 2:
                 self.updateRecognition.emit('_multiple')
     
