@@ -80,8 +80,7 @@ class RosThread(QThread):
 
 
 class StartPage(QWidget):
-    """PySide Widget implementing the splash page for Arnie."""
-    leaveStart = Signal()
+    """PySide Widget implementing the start page for Arnie."""
     goToRegistration = Signal()
     loginOrder = Signal()
     guestOrder = Signal()
@@ -89,86 +88,86 @@ class StartPage(QWidget):
     def __init__(self, enterPageSignal, updateRecognitionSignal):
         super().__init__()
 
-        enterPageSignal.connect(self.enter_page)
+        enterPageSignal.connect(self.enter)
         updateRecognitionSignal.connect(self.update_recognition)
 
-        main_layout = QVBoxLayout()
-
+        # Title Text | QLabel
         self.title_text = QLabel("ArnieBot - The Original Iced Tea + Lemonade\nBeverage Service System")
         font = self.title_text.font()
         font.setPointSize(TITLE_FONT_SIZE)
         self.title_text.setFont(font)
         self.title_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
+        # Subtitle Text | QLabel
         self.recognition_text = QLabel("No faces detected...")
         font = self.recognition_text.font()
         font.setPointSize(BODY_FONT_SIZE)
         self.recognition_text.setFont(font)
         self.recognition_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
-        self.new_user_button = QPushButton("Register")
-        self.new_user_button.setFixedHeight(BUTTON_HEIGHT)
+        # Register Button | QPushButton
+        self.register_button = QPushButton("Register")
+        self.register_button.setFixedHeight(BUTTON_HEIGHT)
+        self.register_button.clicked.connect(self.register)
 
-        self.existing_user_button = QPushButton("Login")
-        self.existing_user_button.setFixedHeight(BUTTON_HEIGHT)
-        self.existing_user_button.setEnabled(False)
+        # Login Button | QPushButton
+        self.login_button = QPushButton("Login")
+        self.login_button.setFixedHeight(BUTTON_HEIGHT)
+        self.login_button.setEnabled(False) #disabled until user is recognized
+        self.login_button.clicked.connect(self.login)
 
+        # Guest Button | QPushButton
         self.guest_button = QPushButton("Guest")
         self.guest_button.setFixedHeight(BUTTON_HEIGHT)
+        self.guest_button.clicked.connect(self.guest_order)
 
+        # Layout for bottom row of buttons
         button_layout = QHBoxLayout()
-        button_layout.addWidget(self.new_user_button)
-        button_layout.addWidget(self.existing_user_button)
+        button_layout.addWidget(self.register_button)
+        button_layout.addWidget(self.login_button)
         button_layout.addWidget(self.guest_button)
 
+        # Overall layout
+        main_layout = QVBoxLayout()
         main_layout.addWidget(self.title_text)
         main_layout.addWidget(self.recognition_text)
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)
-
-        self.new_user_button.clicked.connect(self.register)
-        self.existing_user_button.clicked.connect(self.login)
-        self.guest_button.clicked.connect(self.guest_order)
     
-    def enter_page(self):
+    def enter(self):
         print('entering idle page')
 
-    def leave_page(self):
+    def leave(self):
         print('leaving idle page')
 
     @Slot(str)
     def update_recognition(self, name_str):
         if name_str == '_empty':
-            self.existing_user_button.setEnabled(False)
+            self.login_button.setEnabled(False)
             self.recognition_text.setText("No faces detected...")
         elif name_str == '_multiple':
-            self.existing_user_button.setEnabled(False)
+            self.login_button.setEnabled(False)
             self.recognition_text.setText("Too many faces in frame!")
         elif name_str == '_unknown':
-            self.existing_user_button.setEnabled(False)
+            self.login_button.setEnabled(False)
             self.recognition_text.setText("Welcome new user!")
         else:
-            self.existing_user_button.setEnabled(True)
+            self.login_button.setEnabled(True)
             self.recognition_text.setText(f"Welcome back, {name_str}")
 
         self.repaint()
 
     def register(self):
-        self.leave_page()
+        self.leave()
         self.goToRegistration.emit()
     
     def login(self):
-        self.leave_page()
+        self.leave()
         self.loginOrder.emit()
 
     def guest_order(self):
-        self.leave_page()
+        self.leave()
         self.guestOrder.emit()
-
-    def mousePressEvent(self, event):
-        print("click...")
-        self.leave_page()
-        self.leaveStart.emit()
 
 
 class RegistrationPage(QWidget):
@@ -180,43 +179,48 @@ class RegistrationPage(QWidget):
     def __init__(self, enterPageSignal, updateFrameSignal):
         super().__init__()
 
-        enterPageSignal.connect(self.enter_registration)
+        enterPageSignal.connect(self.enter)
         updateFrameSignal.connect(self.set_image)
 
-        #NOTE: getting a path we can actually write with is kinda funny:
-        # QStandardPaths.PicturesLocation is a object that "knows" where 
-        # Pictures is, but doesn't return a path string like: 
-        # "/home/jon/Pictures". QStandardPaths.writableLocation returns the
-        # path string we need for a filename!
-        self.pictures_location = QStandardPaths.writableLocation(QStandardPaths.PicturesLocation)
-        self.picture_filename = f"{self.pictures_location}/tmp.jpg"
-
+        # Greeting Text | QLabel
         self.greeting_text = QLabel("Welcome new user!\nPlease enter your name\nand take a profile picture")
         font = self.greeting_text.font()
         font.setPointSize(BODY_FONT_SIZE)
         self.greeting_text.setFont(font)
         self.greeting_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
+        # First Name Input Label | QLabel
         self.first_name_label = QLabel("First Name:")
         self.first_name_label.setAlignment(Qt.AlignLeft|Qt.AlignBottom)
         self.first_name_label.setFixedHeight(24)
+
+        # First Name Input Textbox | QLineEdit
         self.first_name_edit = QLineEdit("Arnold")
         self.first_name_edit.setFixedWidth(180)
 
+        # Last Name Input Label | QLabel
         self.last_name_label = QLabel("Last Name:")
         self.last_name_label.setAlignment(Qt.AlignLeft|Qt.AlignBottom)
         self.last_name_label.setFixedHeight(24)
+
+        # Last Name Input Textbox | QLineEdit
         self.last_name_edit = QLineEdit("Palmer")
         self.last_name_edit.setFixedWidth(180)
 
+        # Spacer (blank) | QLabel
         self.spacer_label = QLabel("")
-    
+
+        # Take Picture Button | QPushButton
         self.take_picture_button = QPushButton("Take Picture")
         self.take_picture_button.setFixedHeight(BUTTON_HEIGHT)
+        self.take_picture_button.clicked.connect(self.take_picture)
     
+        # Cancel Button | QPushButton
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.setFixedHeight(BUTTON_HEIGHT)
+        self.cancel_button.clicked.connect(self.cancel)
 
+        # Layout for name input and buttons
         self.left_layout = QVBoxLayout()
         self.left_layout.addWidget(self.greeting_text)
         self.left_layout.addWidget(self.first_name_label)
@@ -227,24 +231,24 @@ class RegistrationPage(QWidget):
         self.left_layout.addWidget(self.take_picture_button)
         self.left_layout.addWidget(self.cancel_button)
 
+        # Camera Preview Widget | QLabel
         self.camera_view_label = QLabel(self)
         self.camera_view_label.setFixedSize(PICTURE_VIEW_WIDTH, PICTURE_VIEW_HEIGHT)
 
+        # Camera Image | QImage
         self.camera_view_img = QImage()
 
+        # Layout for full page
         main_layout = QHBoxLayout()
         main_layout.addLayout(self.left_layout)
         main_layout.addWidget(self.camera_view_label)
         self.setLayout(main_layout)
 
-        self.take_picture_button.clicked.connect(self.take_picture)
-        self.cancel_button.clicked.connect(self.cancel)
-
-    def enter_registration(self):
+    def enter(self):
         print("entering reg page")
-        self.camera_view_label.clear()
+        self.camera_view_label.clear() #cleanup camera view widget
 
-    def leave_registration(self):
+    def leave(self):
         print("leaving reg page")
 
     @Slot(QImage)
@@ -258,16 +262,16 @@ class RegistrationPage(QWidget):
         first_name = self.first_name_edit.text()
         last_name = self.last_name_edit.text()
         
-        self.leave_registration()
+        self.leave()
         self.setRegistrationDetails.emit(first_name, last_name, self.camera_view_img)
 
     def cancel(self):
-        self.leave_registration()
+        self.leave()
         self.cancelRegistration.emit()
 
 
 class ConfirmationPage(QWidget):
-
+    """PySide2 Widget implementing a user profile review page for Arnie."""
     cancelConfirmation = Signal()
     retakeProfile = Signal()
     confirmUserInfo = Signal(str,str,QImage)
@@ -277,49 +281,57 @@ class ConfirmationPage(QWidget):
 
         enterPageSignal.connect(self.enter)
 
-        main_layout = QHBoxLayout()
-
+        # Confirmation Text | Qlabel
         self._confirm_text = QLabel("Does this look OK?")
         font = self._confirm_text.font()
         font.setPointSize(BODY_FONT_SIZE)
         self._confirm_text.setFont(font)
         self._confirm_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
+        # Approve Button | QPushButton
         self._approve_button = QPushButton("Approve")
         self._approve_button.setFixedHeight(BUTTON_HEIGHT)
         self._approve_button.clicked.connect(self.approve)
+
+        # Retake Button | QPushButton
         self._retake_button = QPushButton("Retake")
         self._retake_button.setFixedHeight(BUTTON_HEIGHT)
         self._retake_button.clicked.connect(self.retake)
+
+        # Cancel Button | QPushButton
         self._cancel_button = QPushButton("Cancel")
         self._cancel_button.setFixedHeight(BUTTON_HEIGHT)
         self._cancel_button.clicked.connect(self.cancel)
 
+        # Layout for buttons stacked vertically
         left_layout = QVBoxLayout()
         left_layout.addWidget(self._confirm_text)
         left_layout.addWidget(self._approve_button)
         left_layout.addWidget(self._retake_button)
         left_layout.addWidget(self._cancel_button)
 
-        main_layout.addLayout(left_layout)
-
+        # Profile Picture Preivew Space | QLabel
         self._profile_picture = QLabel(self)
         self._profile_picture.setFixedSize(PICTURE_VIEW_WIDTH, PICTURE_VIEW_HEIGHT)
         
-        self._first_name = "NOINIT_FIRST"
+        # Profile Name Preview Text | Qlabel
+        self._first_name = "NOINIT_FIRST" #if you see these, then enter() failed
         self._last_name = "NOINIT_LAST"
         self._profile_name = QLabel(f"Name: '{self._first_name} {self._last_name}'")
         font = self._profile_name.font()
         font.setPointSize(BODY_FONT_SIZE)
         self._profile_name.setFont(font)
         self._profile_name.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
-        self._profile_name.setFixedHeight(32)
+        self._profile_name.setFixedHeight(32) #TODO: fix size hardcode
 
+        # Layout for pic and name preview
         right_layout = QVBoxLayout()
-
         right_layout.addWidget(self._profile_picture)
         right_layout.addWidget(self._profile_name)
 
+        # Layout for full page
+        main_layout = QHBoxLayout()
+        main_layout.addLayout(left_layout)
         main_layout.addLayout(right_layout)
         self.setLayout(main_layout)
 
@@ -337,15 +349,6 @@ class ConfirmationPage(QWidget):
 
     def leave(self):
         print("leaving conf page")
-
-    @Slot(str,str,str)
-    def update_preview(self, first_name, last_name, picture_filename):
-        self._first_name = first_name
-        self._last_name = last_name
-        self._profile_picture.setPixmap(QPixmap(picture_filename))
-
-        self._confirm_text.setText(f"Thanks {self._first_name}!\nDoes this look OK?")
-        self._profile_name.setText(f"Name: '{self._first_name} {self._last_name}'")
     
     def approve(self):
         print("Approved!")
