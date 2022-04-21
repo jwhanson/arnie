@@ -16,8 +16,6 @@ import sys
 from PySide2.QtCore import (
     Qt,
     Slot,
-    QStandardPaths,
-    QObject,
     Signal,
     QThread
 )
@@ -44,7 +42,9 @@ import sensor_msgs.msg
 from cv_bridge import CvBridge
 from arnie_kiosk.srv import (
     InsertUser,
-    InsertOrder
+    InsertOrder,
+    FetchItemIds,
+    FetchItem
 )
 from arnie_vision.srv import (
     AddFaceToRecog
@@ -364,64 +364,191 @@ class ConfirmationPage(QWidget):
         self.cancelConfirmation.emit()
 
 
+class MenuButton(QPushButton):
+    def __init__(self, button_text):
+        super().__init__(button_text)
+        self.setFixedHeight(90) #TODO no hard code?
+        self.setEnabled(False)
+
+
+class SpecialMenu(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        #TODO: something special
+        # for now just put menu item 1
+
+        # Special Item Button | MenuButton
+        self.special_button = MenuButton('S')
+
+        # Special Item Text | QLabel
+        self.special_text = QLabel("could be specialer")
+
+        special_layout = QVBoxLayout()
+        special_layout.addWidget(self.special_button)
+        special_layout.addWidget(self.special_text)
+
+        self.setLayout(special_layout)
+
+
+class NormalMenu(QWidget):
+    def __init__(self, fetch_menu_item_ids_sh, fetch_menu_item_sh):
+        super().__init__()
+        
+        # Setup menu via ROS service handle database calls
+        self.menu = dict()
+        response = fetch_menu_item_ids_sh()
+        item_ids = response.item_ids
+        for item_id in item_ids:
+            response = fetch_menu_item_sh(item_id)
+            self.menu[item_id] = response.name
+
+        # Configure Button Layout dimentions
+        num_rows = 2
+        num_cols = 3
+
+        # Setup Generic MenuButtons
+        self.menu_buttons = []
+        for i in range(num_rows*num_cols):
+            menu_button = MenuButton(f"{i+1}")
+            self.menu_buttons.append(menu_button)
+
+
+        # Upper layout (3 buttons in a row)
+        upper_layout = QHBoxLayout()
+        for i in range(num_cols):
+            upper_layout.addWidget(self.menu_buttons[i])
+
+        # Lower layout (3 buttons in a row)
+        lower_layout = QHBoxLayout()
+        for i in range(num_cols):
+            lower_layout.addWidget(self.menu_buttons[i+num_cols])
+
+        # Main layout (2 rows of buttons)
+        menu_layout = QVBoxLayout()
+        menu_layout.addLayout(upper_layout)
+        menu_layout.addLayout(lower_layout)
+
+        # Scroll Menu Left Button | QPushButton
+        self._scroll_left_button = QPushButton("<")
+        self._scroll_left_button.setFixedHeight(200)
+        self._scroll_left_button.setFixedWidth(32)
+        self._scroll_left_button.clicked.connect(self.scroll_left)
+
+        # Scroll Menu Right Button | QPushButton
+        self._scroll_right_button = QPushButton(">")
+        self._scroll_right_button.setFixedHeight(200)
+        self._scroll_right_button.setFixedWidth(32)
+        self._scroll_right_button.clicked.connect(self.scroll_right)
+
+        # Main Layout
+        main_layout = QHBoxLayout()
+        main_layout.addWidget(self._scroll_left_button)
+        main_layout.addLayout(menu_layout)
+        main_layout.addWidget(self._scroll_right_button)
+        self.setLayout(main_layout)
+
+        # Setup manipulation of menu
+        self.current_page = 0
+        self.items_per_page = num_rows*num_cols
+        self.num_pages = len(self.menu)//self.items_per_page
+
+        # Populate Menu
+        self.redraw_menu()
+
+    def set_page(self, page_num):
+        if page_num >=0 and page_num < self.num_pages:
+            self.current_page = page_num
+            self.redraw_menu()
+
+    def redraw_menu(self):
+        if self.current_page == 0:
+            self._scroll_left_button.setEnabled(False)
+        else:
+            self._scroll_left_button.setEnabled(True)
+        if self.current_page == self.num_pages:
+            self._scroll_right_button.setEnabled(False)
+        else:
+            self._scroll_right_button.setEnabled(True)
+
+        for i in range(self.items_per_page):
+            menu_index = i + self.current_page*self.items_per_page
+            if menu_index < len(self.menu):
+                item_id = list(self.menu.keys())[menu_index]
+                self.menu_buttons[i].setText(self.menu[item_id])
+                self.menu_buttons[i].setEnabled(True)
+            else:
+                self.menu_buttons[i].setText("N/A")
+                self.menu_buttons[i].setEnabled(False)
+
+    def scroll_left(self):
+        self.current_page -= 1
+        self.redraw_menu()
+
+    def scroll_right(self):
+        self.current_page += 1
+        self.redraw_menu()
+
+
 class OrderPage(QWidget):
     '''PySide widget implementing a simple demo ordering system.'''
-
     cancelOrder = Signal()
     dispatchOrder = Signal(int)
 
-    #TODO: we need to formalize the concept of a menu in the program
-    _menu_text = """Please enter an order ID:
-1 - Classic Arnold Palmer
-2 - Just Lemonade
-3 - A Bit of Everything"""
-
-    def __init__(self, enterPageSignal):
+    def __init__(self, enterPageSignal, fetch_menu_item_ids_sh, fetch_menu_item_sh):
         super().__init__()
 
         enterPageSignal.connect(self.enter)
 
-        main_layout = QVBoxLayout()
-
-        self._order_text = QLabel(self._menu_text)
+        # Top Text | QLabel
+        self._order_text = QLabel("Thanks #NAME#, please select a beverage and tap 'Submit'") #TODO: add name
         font = self._order_text.font()
         font.setPointSize(BODY_FONT_SIZE)
         self._order_text.setFont(font)
-        self._order_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
+        self._order_text.setAlignment(Qt.AlignVCenter) #default align left?
 
-        main_layout.addWidget(self._order_text)
+        # Special Menu Object | QWidget (Custom)
+        self.special_menu = SpecialMenu()
 
-        self._order_id_edit = QLineEdit()
-        self._order_id_edit.setFixedWidth(240) #TODO: unhardcode
+        # Normal Menu Object | QWidget (Custom)
+        self.normal_menu = NormalMenu(fetch_menu_item_ids_sh, fetch_menu_item_sh)
 
-        self._submit_button = QPushButton("Submit")
-        self._submit_button.setFixedHeight(BUTTON_HEIGHT)
-        self._submit_button.clicked.connect(self.submit)
+        # Core Menu Layout (special menu left, normal menu right)
+        core_layout = QHBoxLayout()
+        core_layout.addWidget(self.special_menu)
+        core_layout.addWidget(self.normal_menu)
 
+        # Submit Button | QPushButton
+        self._spacer = QLabel("")
+
+        # Cancel Button | QPushButton
         self._cancel_button = QPushButton("Cancel")
         self._cancel_button.setFixedHeight(BUTTON_HEIGHT)
         self._cancel_button.clicked.connect(self.cancel)
 
-        bot_layout = QHBoxLayout()
-        bot_layout.addWidget(self._order_id_edit)
+        # Layout for cancel button
+        bottom_button_layout = QHBoxLayout()
+        bottom_button_layout.addWidget(self._spacer)
+        bottom_button_layout.addWidget(self._cancel_button)
 
-        bot_right_sublayout = QVBoxLayout()
-        bot_right_sublayout.addWidget(self._submit_button)
-        bot_right_sublayout.addWidget(self._cancel_button)
-
-        bot_layout.addLayout(bot_right_sublayout)
-        main_layout.addLayout(bot_layout)
+        # Main Layout
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(self._order_text)
+        main_layout.addLayout(core_layout)
+        main_layout.addLayout(bottom_button_layout)
         self.setLayout(main_layout)
 
     @Slot(int)
     def enter(self, user_id):
         print(f"entering order page; curr user {user_id}")
+        self.normal_menu.set_page(0) #reset the normal menu widget
 
     def leave(self):
         print("leaving order page")
     
     def submit(self):
-        order_id = int(self._order_id_edit.text())
+        #TODO
+        order_id = "TODO"
         self.dispatchOrder.emit(order_id)
 
     def cancel(self):
@@ -506,7 +633,7 @@ class MainWindow(QMainWindow):
     enterOrder = Signal(int)
     enterWait = Signal()
 
-    def __init__(self, ros_order_pub, insert_user_sh, insert_order_sh, add_face_to_recog_sh):
+    def __init__(self, ros_order_pub, insert_user_sh, insert_order_sh, add_face_to_recog_sh, fetch_menu_item_ids_sh, fetch_menu_item_sh):
         super().__init__()
         # ROS setup
         self.bridge = CvBridge()
@@ -547,7 +674,7 @@ class MainWindow(QMainWindow):
         self._confirmation_page.confirmUserInfo.connect(self.insert_user_info)
 
         # Page 3 | Order Page
-        self._order_page = OrderPage(self.enterOrder)
+        self._order_page = OrderPage(self.enterOrder, fetch_menu_item_ids_sh, fetch_menu_item_sh)
         self._stacked_widget.addWidget(self._order_page)
         self._order_page.cancelOrder.connect(self.go_to_start)
         self._order_page.dispatchOrder.connect(self.dispatch_order)
@@ -564,6 +691,7 @@ class MainWindow(QMainWindow):
 
     def go_to_start(self):
         self.go_to_page(0)
+        self.active_user_id = 0 #reset the active user at the start page
         self.enterStart.emit()
 
     def go_to_registration(self):
@@ -602,8 +730,7 @@ class MainWindow(QMainWindow):
             self.enterOrder.emit(user_id)
         except rospy.ServiceException as e:
             print(f"Service call failed: {e}")
-            self.go_to_page(0)
-            self.enterStart.emit()
+            self.go_to_start()
 
     @Slot(int)
     def dispatch_order(self, item_id):
@@ -615,8 +742,7 @@ class MainWindow(QMainWindow):
                 print(f"({type(order_id)})order_id: {order_id}")
             except rospy.ServiceException as e:
                 print(f"Service call failed: {e}")
-                self.go_to_page(0) #back to start
-                self.enterStart.emit()
+                self.go_to_start()
                 return
 
         #publish the new order to ROS
@@ -686,15 +812,19 @@ if __name__ == "__main__":
     print("Blocking until database services are available...")
     rospy.wait_for_service('insert_user')
     rospy.wait_for_service('add_face_to_recog')
+    rospy.wait_for_service('fetch_item_ids')
+    rospy.wait_for_service('fetch_item')
     print("Success! Database services are ready")
 
     #create service handle for calling service
     insert_user_sh = rospy.ServiceProxy('insert_user', InsertUser)
     insert_order_sh = rospy.ServiceProxy('insert_order', InsertOrder)
     add_face_to_recog_sh = rospy.ServiceProxy('add_face_to_recog', AddFaceToRecog)
+    fetch_item_ids_sh = rospy.ServiceProxy('fetch_item_ids', FetchItemIds)
+    fetch_item_sh = rospy.ServiceProxy('fetch_item', FetchItem)
 
     app = QApplication()
-    window = MainWindow(order_pub, insert_user_sh, insert_order_sh, add_face_to_recog_sh)
+    window = MainWindow(order_pub, insert_user_sh, insert_order_sh, add_face_to_recog_sh, fetch_item_ids_sh, fetch_item_sh)
     rospy.Subscriber("frame", sensor_msgs.msg.Image, window.frame_callback)
     rospy.Subscriber("recoged_names", std_msgs.msg.String, window.recoged_names_callback)
     rospy.Subscriber("served", std_msgs.msg.Bool, window.served_callback)

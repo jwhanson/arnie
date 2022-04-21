@@ -16,7 +16,9 @@ from arnie_kiosk.srv import (
     InsertUser, InsertUserResponse,
     InsertOrder, InsertOrderResponse,
     FetchUser, FetchUserResponse,
-    FetchIds, FetchIdsResponse
+    FetchIds, FetchIdsResponse,
+    FetchItemIds, FetchItemIdsResponse,
+    FetchItem, FetchItemResponse
 )
 
 
@@ -108,6 +110,32 @@ class ArnieDatabaseServer(object):
         cursor.close()
 
         return InsertOrderResponse(order_id)
+    
+    def fetch_item_ids(self, request):
+        fetch_item_ids_query = """SELECT item_id FROM menu"""
+
+        cursor = self.conn.cursor()
+        cursor.execute(fetch_item_ids_query)
+        rows = cursor.fetchall()
+        cursor.close()
+
+        item_ids = [ id for row in rows for id in row ]
+
+        return FetchItemIdsResponse(item_ids)
+
+    def fetch_item(self, request):
+        fetch_item_query = """SELECT name FROM menu WHERE item_id=%s"""
+        fetch_item_payload = (request.item_id,)
+
+        cursor = self.conn.cursor()
+        cursor.execute(fetch_item_query, fetch_item_payload)
+        row = cursor.fetchall()[0]
+        cursor.close()
+
+        print(row)
+        name = row[0]
+
+        return FetchItemResponse(name)
 
 
 def main():
@@ -118,6 +146,8 @@ def main():
     rospy.Service('insert_order', InsertOrder, db_server.insert_order)
     rospy.Service('fetch_user', FetchUser, db_server.fetch_user_entry)
     rospy.Service('fetch_ids', FetchIds, db_server.fetch_user_ids)
+    rospy.Service('fetch_item_ids', FetchItemIds, db_server.fetch_item_ids)
+    rospy.Service('fetch_item', FetchItem, db_server.fetch_item)
 
     rospy.spin()
 

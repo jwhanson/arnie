@@ -61,6 +61,8 @@ add_service_files(
   InsertUser.srv
   FetchUser.srv
   FetchIds.srv
+  FetchItemIds.srv
+  FetchItem.srv
   InsertOrder.srv
 )
 
@@ -211,6 +213,8 @@ include_directories(
 # catkin_add_nosetests(test)
 
 catkin_install_python(PROGRAMS src/gui.py DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+
+catkin_install_python(PROGRAMS src/menu.py DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 catkin_install_python(PROGRAMS src/database_server.py DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
