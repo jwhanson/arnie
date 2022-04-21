@@ -61,6 +61,7 @@ add_service_files(
   InsertUser.srv
   FetchUser.srv
   FetchIds.srv
+  InsertOrder.srv
 )
 
 ## Generate actions in the 'action' folder

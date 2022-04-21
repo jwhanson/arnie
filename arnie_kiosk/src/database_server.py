@@ -10,9 +10,11 @@ import numpy as np
 import cv2
 from cv_bridge import CvBridge
 import pickle
+import datetime
 import std_msgs.msg
 from arnie_kiosk.srv import (
     InsertUser, InsertUserResponse,
+    InsertOrder, InsertOrderResponse,
     FetchUser, FetchUserResponse,
     FetchIds, FetchIdsResponse
 )
@@ -28,10 +30,10 @@ CREATE TABLE IF NOT EXISTS users (
 
 SQL_CREATE_ORDERS_TABLE = """
 CREATE TABLE IF NOT EXISTS orders (
-    order_id SERIAL PRIMARY KEY,
-    timestamp DATETIME,
-    user_id INTEGER,
-    menu_id INTEGER
+    order_id SERIAL NOT NULL PRIMARY KEY,
+    order_time TIMESTAMP NOT NULL,
+    user_id INT NOT NULL,
+    item_id INT NOT NULL
 );"""
 
 
@@ -42,12 +44,14 @@ class ArnieDatabaseServer(object):
                                      password="jon",
                                      database="postgres")
         self.bridge = CvBridge()
-        self.create_users_table()
-
-    def create_users_table(self):
+        
+        #create tables if not exist
         cursor = self.conn.cursor()
         cursor.execute(SQL_CREATE_USERS_TABLE)
         self.conn.commit()
+        cursor.execute(SQL_CREATE_ORDERS_TABLE)
+        self.conn.commit()
+        cursor.close()
 
     def fetch_user_ids(self, request):
         fetch_user_ids_query = """SELECT user_id FROM users"""
@@ -93,30 +97,17 @@ class ArnieDatabaseServer(object):
 
         return FetchUserResponse(first_name, last_name, profile_picture_msg)
 
-    def check_user(self, user_id):
-        check_query = """SELECT * FROM users WHERE user_id=%s"""
-        check_payload = (user_id,)
+    def insert_order(self, request):
+        insert_order_query = """INSERT INTO orders(order_time, user_id, item_id) VALUES(%s,%s,%s) RETURNING order_id"""
+        insert_order_payload = (datetime.datetime.now(),request.user_id,request.item_id)
 
         cursor = self.conn.cursor()
-        cursor.execute(check_query, check_payload)
-
-        results = cursor.fetchall()
+        cursor.execute(insert_order_query, insert_order_payload)
+        order_id = cursor.fetchone()[0]
+        self.conn.commit()
         cursor.close()
 
-        user = results[0]
-
-        print(user)
-        first_name = user[1]
-        last_name = user[2]
-        profile_picture = pickle.loads(user[3])
-
-        # Nice Debug Prints:
-        print(first_name)
-        print(last_name)
-        cv2.imshow("insert", profile_picture)
-        cv2.waitKey()
-
-        return
+        return InsertOrderResponse(order_id)
 
 
 def main():
@@ -124,6 +115,7 @@ def main():
 
     rospy.init_node('database_server')
     rospy.Service('insert_user', InsertUser, db_server.insert_user)
+    rospy.Service('insert_order', InsertOrder, db_server.insert_order)
     rospy.Service('fetch_user', FetchUser, db_server.fetch_user_entry)
     rospy.Service('fetch_ids', FetchIds, db_server.fetch_user_ids)
 

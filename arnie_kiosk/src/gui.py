@@ -43,7 +43,8 @@ import std_msgs.msg
 import sensor_msgs.msg
 from cv_bridge import CvBridge
 from arnie_kiosk.srv import (
-    InsertUser
+    InsertUser,
+    InsertOrder
 )
 from arnie_vision.srv import (
     AddFaceToRecog
@@ -502,11 +503,12 @@ class MainWindow(QMainWindow):
     enterOrder = Signal(int)
     enterWait = Signal()
 
-    def __init__(self, ros_order_pub, insert_user_sh, add_face_to_recog_sh):
+    def __init__(self, ros_order_pub, insert_user_sh, insert_order_sh, add_face_to_recog_sh):
         super().__init__()
         self.bridge = CvBridge()
         self.ros_order_pub = ros_order_pub
         self.insert_user_sh = insert_user_sh
+        self.insert_order_sh = insert_order_sh
         self.add_face_to_recog_sh = add_face_to_recog_sh
         self.ros_thread = RosThread()
         self.ros_thread.start()
@@ -597,9 +599,22 @@ class MainWindow(QMainWindow):
             self.enterStart.emit()
 
     @Slot(int)
-    def dispatch_order(self, order_id):
-        print(f"ROS is a go for order_id={order_id}")
+    def dispatch_order(self, item_id):
+        # If this is a registered user, then try the database interaction
+        if self.active_user_id > 0:
+            try:
+                response = self.insert_order_sh(self.active_user_id, item_id)
+                order_id = response.order_id
+                print(f"({type(order_id)})order_id: {order_id}")
+            except rospy.ServiceException as e:
+                print(f"Service call failed: {e}")
+                self.go_to_page(0) #back to start
+                self.enterStart.emit()
+                return
+
+        #publish the new order to ROS
         self.ros_order_pub.publish(std_msgs.msg.UInt16(order_id))
+        print(f"ROS is a go for order_id={order_id}")
         self.go_to_page(4) #wait page
         self.enterWait.emit()
 
@@ -665,10 +680,11 @@ if __name__ == "__main__":
 
     #create service handle for calling service
     insert_user_sh = rospy.ServiceProxy('insert_user', InsertUser)
+    insert_order_sh = rospy.ServiceProxy('insert_order', InsertOrder)
     add_face_to_recog_sh = rospy.ServiceProxy('add_face_to_recog', AddFaceToRecog)
 
     app = QApplication()
-    window = MainWindow(order_pub, insert_user_sh, add_face_to_recog_sh)
+    window = MainWindow(order_pub, insert_user_sh, insert_order_sh, add_face_to_recog_sh)
     rospy.Subscriber("frame", sensor_msgs.msg.Image, window.frame_callback)
     rospy.Subscriber("recoged_names", std_msgs.msg.String, window.recoged_names_callback)
     rospy.Subscriber("served", std_msgs.msg.Bool, window.served_callback)
