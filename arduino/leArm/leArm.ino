@@ -1,4 +1,4 @@
-/* leArm_1.1.2.ino
+/* leArm.ino
  *
  * Author:
  * Kirk Boyd
@@ -58,11 +58,33 @@ float timer2;
 float timer3;
 float timer4;
 float timer5;
-float waitTime = 3000; //ms
-float waitTime2 = 2000; //ms
+
 int status_string;
 int prevString;
 int string_msg;
+
+bool gotCup;
+int curr_goal_index = 0;
+float timeStamp;
+float waitTime = 2000; //ms
+int goalNum = 0;
+int prevGoal;
+int moveNum = 0; // this is the index for which move in the goals array we are on
+bool state_setup_flag; //checks whether timer has been started
+bool flushed = false; 
+bool rstNow;
+//becomes true after the tubes have been flushed once when 
+//everything is initially setup so that tubes have liquid in them.
+
+int goals[][3] = { {90,   90,   60},
+                   {0,    50,   140},
+                   {90,   120,  135},
+                   {180,  70,   180},
+                   {180,  20,   177},
+                   {180,  37,   177},
+                   {180,  80,   180},
+                   {0,    50,   140}  };
+/* End FSM Variables */
 
 /* ROS Setup */
 ros::NodeHandle nh;
@@ -91,10 +113,23 @@ ros::Publisher placed("placed", &placed_msg);
 /* "status" topic */
 std_msgs::UInt16 status_msg;
 ros::Publisher status("status", &status_msg);
+
+/* "rst" topic */
+void rstCb(const std_msgs::Bool& rst_msg){
+  if (rst_msg.data == true){    
+    orderUp = false;
+    serving = false;
+    served = false;
+    isPlaced = false;
+    rstNow = true;
+  }
+}
+std_msgs::Bool rst_msg;
+ros::Publisher rst("rst", &rst_msg);
+ros::Subscriber<std_msgs::Bool> sub_rst("rst", rstCb);
 /* End ROS Setup */
 
 void setup() {
-  Serial.begin(9600); //for debug
   pinMode(sw1, INPUT); pinMode(sw2, INPUT); //tell arduino the switches are inputs
   pinMode(LED_BUILTIN,OUTPUT); // for debug
   servo0.attach(servo0pin); servo1.attach(servo1pin); servo2.attach(servo2pin); servo3.attach(servo3pin);
@@ -102,137 +137,109 @@ void setup() {
   nh.advertise(placed); // tell ROS master that we will publish to the "placed" topic
   nh.advertise(status); // tell ROS master that we will publish to the "status" topic
   nh.subscribe(sub1); // subscribe to the "order" topic
-  nh.subscribe(sub2); // subscribe to the "pla" topic
+  nh.subscribe(sub2); // subscribe to the "placed" topic
+  nh.subscribe(sub_rst);
   home();
-    Serial.println("Home");
   delay(1500); //wait 1.5 seconds to make sure servos are home
 }// end void setup()
 
+
 void loop() {
-  sw1State = !digitalRead(sw1); //buttons read high when pressed, so we invert them 
-  sw2State = !digitalRead(sw2); //which makes pressed = true and not pressed = false
-  Serial.print(sw1State);
-  Serial.print(" , ");
-  Serial.println(sw2State);
-  prevString = status_string;
-  prevPlaced = isPlaced;
-  if(orderUp){
-    if(!sw1State && !sw2State && !served && !isPlaced && !serving){ //if end effector and plate are not depressed
-      //maybe add !orderUp******
-      
-      // move to "receive cup" pose
-      goal0 = 0;
-      goal1 = 50;
-      goal2 = 140;
-      isPlaced = false;
-//      status_string = "Waiting for cup";
-      status_string = 1;
+    sw1State = !digitalRead(sw1); //buttons read high when pressed, so we invert them 
+    sw2State = !digitalRead(sw2); //which makes pressed = true and not pressed = false
+    if( sw1State ){
+        if( orderUp ){
+            gotCup = true; 
+            // this should stay true from the first time the cup is registered in the 
+            // gripper and an order is placed until the order is completed as a failsafe
+            // against losing contact with the switch
+        }
     }
-    else if(sw1State && !sw2State && !served && !startedCounting){ //if
-      // wait a sec for user to put in cup and get their hand away
-      timer = millis();
-      serving = true;
-      startedCounting = true;
-      isPlaced = false;
-//      status_string = "Got cup, waiting a sec";
-      status_string = 2;
+    if( sw2State ){
+        if( gotCup ){
+            isPlaced = true;
+            // this should stay true from the first time the cup touches the stand
+            // in order to prevent jitter or weirdness if the cup moves and the switch
+            // does not stay depressed
+        }
     }
-    else if(startedCounting && timer + waitTime <= millis() && !sw2State && !countingAgain){
-      // move to an intermediate position to avoid obstacles
-      goal0 = 90;
-      goal1 = 120;
-      goal2 = 135;
-      timer2 = millis();
-      countingAgain = true;
-      isPlaced = false;
-//      status_string = "Moving to stand step 1";
-      status_string = 3;
-    }
-    else if(startedCounting && countingAgain && !countingAgainAgain && timer + waitTime <= millis() && !sw2State && timer2 + waitTime2 <= millis()){
-      // get closer to platform
-      goal0 = 180;
-      goal1 = 70;
-      goal2 = 180;
-      isPlaced = false;
-      timer3 = millis();
-      countingAgainAgain = true;
-//      status_string = "Moving to stand step 2";
-      status_string = 4;
-    }
-    else if(countingAgainAgain && !sw2State && timer3 + waitTime2 <= millis() && !isPlaced){
-      // place cup on platform
-      goal0 = 180;
-      goal1 = 20;
-      goal2 = 177;
-      isPlaced = false;
-//      status_string = "Putting cup on stand";
-      status_string = 5;
-    }
-    else if(sw2State && !served && serving){
-      // keep cup on platform
-      goal0 = 180;
-      goal1 = 37;
-      goal2 = 177;
-      timer4 = millis();
-      counting4 = true;
-      isPlaced = true;
-//      status_string = "Cup on stand, dispensing";
-      status_string = 6;
-    }
-    else if(served && counting4 && timer4 + waitTime2 <= millis() && !done && !counting5){
-      // pass drink back to user
-      goal0 = 180;
-      goal1 = 80;
-      goal2 = 180;
-      isPlaced = true;
-//      status_string = "Moving back to user, step 1";
-      counting5 = true;
-      timer5 = millis();
-      status_string = 7;
-    }
-    else if(served && counting5 && timer5 + waitTime2 <= millis()){
-      // pass drink back to user
-      goal0 = 0;
-      goal1 = 50;
-      goal2 = 140;
-      isPlaced = true;
-//      status_string = "Cup should be at user now.";
-      status_string = 8;
-      done = true;
-    }
+    prevGoal = goalNum; // to check if we moved at the end
     
-    goal3 = goal1 + (140 - goal2); //keep cup level
-    
-    /* Smoothing */
-    goal0smooth = (goal0 * ratio1) + (goal0prev * ratio2);
-    goal1smooth = (goal1 * ratio1) + (goal1prev * ratio2);
-    goal2smooth = (goal2 * ratio1) + (goal2prev * ratio2);
-    goal3smooth = (goal3 * ratio1) + (goal3prev * ratio2);
+    if( goalNum == 0 ){ /* Initial Ready State with Arm at Home and No Order */
+        // STATE CONTENT
+        smoothWrite(goals[0]); // apply smoothing and write to servos      
+        if( !flushed ){goalNum = 1;}  // STATE TRANSITION - if not flushed go to flush sequence
+        else if( gotCup && flushed){goalNum = 2;} // otherwise once button is depressed & order is in, move on
+    }
+    else if( goalNum == 1 ){ /* Flush Sequence */
+                                    // STATE CONTENT: execute flush sequence. This might have to write something to a new topic on the other arduino
+        if( gotCup && flushed ){goalNum = 2;}// STATE TRANSITION
+    }
+    else if( goalNum == 2){ /* Cup Transfer Sequence */
+        if(state_setup_flag){         // STATE CONTENT: if sequence has just moved to this state, the flag will be true and the timer will begin counting once.
+          timeStamp = millis();
+          state_setup_flag = false;   // now the flag is false, so we will not begin counting until the next step in the sequence.
+        }
+        if( millis() >= timeStamp + waitTime ){
+          moveNum += 1;
+          state_setup_flag = true;
+        }
+        smoothWrite(goals[moveNum]);  // write the smoothed values to the servo
+        if( isPlaced ){goalNum = 3;}  // STATE TRANSITION
+    }
+    else if( goalNum == 3){ /* Cup Hold On Plate */
+                                      // STATE CONTENT /* Do Nothing for Now */
+        if( served ){goalNum = 4;}    // STATE TRANSITION
+    }
+    else if( goalNum == 4 ){ /* Move Cup Back to User */  
+        if(state_setup_flag){         // STATE CONTENT: if sequence has just moved to this state, the flag will be true and the timer will begin counting once.
+            timeStamp = millis();
+            state_setup_flag = false;   // now the flag is false, so we will not begin counting until the next step in the sequence.
+        }
+        if( millis() >= timeStamp + waitTime ){ //step forward in goal array for next movement
+            moveNum += 1;
+            state_setup_flag = true;
+        }
+        smoothWrite(goals[moveNum]);  // write the smoothed values to the servo
+        if( moveNum == 8 ){goalNum = 5;}// STATE TRANSITION
+    }
+    else if( goalNum == 5 ){ /* Final State */
+                                      // STATE CONTENT /* Do nothing for now*/
+        if( rstNow ){goalNum = 0;}    // STATE TRANSITION: reset everything if we got a reset message from ROS
+    }        
+    if (isPlaced) { digitalWrite(LED_BUILTIN, HIGH); } // light onboard LED to tell us platform switch was triggered
+    else{ digitalWrite(LED_BUILTIN, LOW);}
+    if (prevPlaced != isPlaced){      // if the message has changed
+        placed_msg.data = isPlaced;     // update actual ROS message variable
+        placed.publish( &placed_msg);   // and publish it to the "status" topic
+    }
+    if(prevGoal != goalNum){           // if the message has changed
+        status_msg.data = goalNum;      // update actual ROS message variable
+        status.publish( &status_msg );  // and publish it to the "status" topic
+    }
+    nh.spinOnce();
+    delay(15);
+} //end void loop()
+
+void smoothWrite(int vals[3]){ //applies the smoothing filter to the array and writes to the servos
+    goal3 = vals[1] + (140 - vals[2]); //calculate last servo angle to hold cup level
+
+    goal0smooth = (vals[0] * ratio1) + (goal0prev * ratio2);
+    goal1smooth = (vals[1] * ratio1) + (goal1prev * ratio2);
+    goal2smooth = (vals[2] * ratio1) + (goal2prev * ratio2);
+    goal3smooth = (goal3   * ratio1) + (goal3prev * ratio2);
     goal0prev = goal0smooth;
     goal1prev = goal1smooth;
     goal2prev = goal2smooth;
     goal3prev = goal3smooth;
-    /* End Smoothing */
-  
-    /* Write Smoothed Values to Servos */
     servo0.write(goal0smooth);
     servo1.write(goal1smooth);
     servo2.write(goal2smooth);
     servo3.write(goal3smooth);
-  }
-  if (isPlaced) { digitalWrite(LED_BUILTIN, HIGH);}
-  else{ digitalWrite(LED_BUILTIN, LOW);}
-  if (prevPlaced != isPlaced){ // if the message has changed
-    placed_msg.data = isPlaced; // update actual ROS message variable
-    placed.publish( &placed_msg); // and publish it to the "status" topic
-  }
-  
-  string_msg = status_string;
-  if(prevString != status_string){ // if the message has changed
-    status_msg.data = string_msg; // update actual ROS message variable
-    status.publish( &status_msg ); // and publish it to the "status" topic
-  }
-  
-  nh.spinOnce();
-  delay(15);
-} //end void loop()
+}
+
+void printSw(){ // print switches nicely formatted for debug
+  Serial.print(sw1State);
+  Serial.print(" , ");
+  Serial.println(sw2State);
+}
