@@ -47,7 +47,7 @@ class ArnieRecognizer(object):
         self.fetch_ids_sh = fetch_ids_sh
         self.fetch_user_sh = fetch_user_sh
         self.time_last_processed_ns = 0
-        self.process_period_ns = int(1e9)
+        self.process_period_ns = int(1e9) # 1 sec
         self.bridge = CvBridge()
 
         self.known_face_encodings = []
@@ -75,7 +75,7 @@ class ArnieRecognizer(object):
                     last_name = fetch_user_response.last_name.data
                     profile_picture_msg = fetch_user_response.profile_picture
                     profile_picture = self.bridge.imgmsg_to_cv2(profile_picture_msg)
-                    profile_picture = cv2.cvtColor(profile_picture, cv2.COLOR_BGR2RGB)
+                    # profile_picture = cv2.cvtColor(profile_picture, cv2.COLOR_BGR2RGB)
 
                     face_encoding = face_recognition.face_encodings(profile_picture)[0]
                     self.known_face_encodings.append(face_encoding)
@@ -92,11 +92,11 @@ class ArnieRecognizer(object):
         if not self.known_face_encodings:
             return False
 
-        #resize to 1/4 for faster processing
-        small_frame = cv2.resize(frame, (0,0), fx=0.25, fy=0.25)
+        #resize to 1/2 for faster processing
+        small_frame = cv2.resize(frame, (0,0), fx=0.5, fy=0.5)
 
         #convert from BGR to RGB
-        rgb_small_frame = small_frame[:,:,::-1]
+        rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
         #find all the faces and face encodings
         self.face_locations = face_recognition.face_locations(rgb_small_frame)
@@ -120,7 +120,7 @@ class ArnieRecognizer(object):
         return True
 
     def show_names(self):
-        print(self.face_names)
+        print(f'{self.face_names}')
         self.names_pub.publish(std_msgs.msg.String(str(self.face_names)))
 
     def frame_callback(self, image_msg):
@@ -143,14 +143,14 @@ class ArnieRecognizer(object):
         name = str(request.user_id)+"_"+request.first_name+"_"+request.last_name
         profile_picture_msg = request.profile_picture
         profile_picture = self.bridge.imgmsg_to_cv2(profile_picture_msg)
-        profile_picture = cv2.cvtColor(profile_picture, cv2.COLOR_BGR2RGB)
+        # profile_picture = cv2.cvtColor(profile_picture, cv2.COLOR_BGR2RGB)
         face_encoding = face_recognition.face_encodings(profile_picture)[0]
         self.known_face_encodings.append(face_encoding)
         self.known_face_names.append(name)
         return AddFaceToRecogResponse(True)
 
 def main():
-    pub = rospy.Publisher("recoged_names", std_msgs.msg.String, queue_size=None)
+    pub = rospy.Publisher("recoged_names", std_msgs.msg.String, queue_size=1)
 
     print("Blocking until database services are available...")
     rospy.wait_for_service('fetch_ids')

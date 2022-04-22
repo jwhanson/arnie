@@ -60,7 +60,7 @@ int main(int argc, char** argv)
     // Main loop
     while (nh.ok()) {
         // Read a new frame
-        cap >> frame;
+        cap.read(frame);
 
         if(!frame.empty()) {
             // Use cv_bridge to convert cv::Mat to ROS sensor_msgs::msg::Image, then publish

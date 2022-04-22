@@ -72,6 +72,8 @@ class ArnieDatabaseServer(object):
 
     def insert_user(self, request):
         profile_picture = self.bridge.imgmsg_to_cv2(request.profile_picture)
+        # cv2.imshow('dbserver test', profile_picture)
+        # cv2.waitKey()
         profile_picture_pickle = pickle.dumps(profile_picture)
         insert_user_query = """INSERT INTO users(first_name,last_name,profile_picture) VALUES(%s,%s,%s) RETURNING user_id"""
         insert_user_payload = (request.first_name, request.last_name, profile_picture_pickle)

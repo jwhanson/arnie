@@ -489,10 +489,10 @@ class SpecialMenu(QWidget):
     def update_special(self, user_id=None):
         if user_id != None:
             # Find user's most frequent item_id ordered
-            print(f"(SM: {type(user_id)}) user_id: {user_id}")
+            # print(f"(SM: {type(user_id)}) user_id: {user_id}")
             response = self.fetch_items_ordered_by_user_sh(user_id)
             user_ordered_items = response.item_ids
-            print(f"(SM: {type(user_ordered_items)}) user_ordered_items: {user_ordered_items}")
+            # print(f"(SM: {type(user_ordered_items)}) user_ordered_items: {user_ordered_items}")
             if user_ordered_items:
                 user_ordered_items_counts = dict()
                 for item_id in set(user_ordered_items):
@@ -777,6 +777,7 @@ class MainWindow(QMainWindow):
         self.add_face_to_recog_sh = add_face_to_recog_sh
         self.ros_thread = RosThread()
         self.ros_thread.start()
+        self.latest_frame = None
 
         # Tracks active user
         self.active_user_id = None
@@ -857,13 +858,12 @@ class MainWindow(QMainWindow):
 
     @Slot(str,str,QImage)
     def insert_user_info(self, first_name, last_name, profile_picture_qimage):
-        profile_picture_cv = convertQImageToMat(profile_picture_qimage)
-        print(type(profile_picture_cv))
+        profile_picture_cv = self.latest_frame.copy() #actually pass the raw frame
         profile_picture_msg = self.bridge.cv2_to_imgmsg(cvim=profile_picture_cv, encoding="passthrough")
         try:
             response = self.insert_user_sh(first_name, last_name, profile_picture_msg)
             user_id = response.user_id
-            print(f"({type(user_id)})user_id: {user_id}")
+            # print(f"({type(user_id)})user_id: {user_id}")
             self.add_face_to_recog_sh(user_id, first_name, last_name, profile_picture_msg)
             self.go_to_page(3) #order page
             self.active_user_id = user_id
@@ -885,7 +885,7 @@ class MainWindow(QMainWindow):
             try:
                 response = self.insert_order_sh(self.active_user_id, item_id)
                 order_id = response.order_id
-                print(f"({type(order_id)})order_id: {order_id}")
+                # print(f"({type(order_id)})order_id: {order_id}")
             except rospy.ServiceException as e:
                 print(f"Service call failed: {e}")
                 self.go_to_start()
@@ -903,6 +903,7 @@ class MainWindow(QMainWindow):
         if self.current_page_index == 1:
             #get frame from msg
             frame = self.bridge.imgmsg_to_cv2(image_msg)
+            self.latest_frame = frame.copy()
 
             #transform frame
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -950,7 +951,7 @@ class MainWindow(QMainWindow):
 
 
 if __name__ == "__main__":
-    order_pub = rospy.Publisher("order", std_msgs.msg.UInt16, queue_size=None)
+    order_pub = rospy.Publisher("order", std_msgs.msg.UInt16, queue_size=1)
 
     print("Blocking until registered with ROS master...")
     rospy.init_node("kiosk")
