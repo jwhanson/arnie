@@ -1,0 +1,6 @@
+uint32 user_id
+string first_name
+string last_name
+sensor_msgs/Image profile_picture
+---
+bool success

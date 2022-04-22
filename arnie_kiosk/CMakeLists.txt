@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(arnie_vision)
+project(arnie_kiosk)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -9,16 +9,11 @@ project(arnie_vision)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   message_generation
-  roslaunch
-  image_transport
-  roscpp
+  cv_bridge
   rospy
   sensor_msgs
   std_msgs
-  cv_bridge
 )
-find_package(OpenCV REQUIRED)
-find_package(Boost REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -63,7 +58,14 @@ find_package(Boost REQUIRED)
 # Generate services in the 'srv' folder
 add_service_files(
   FILES
-  AddFaceToRecog.srv
+  InsertUser.srv
+  FetchUser.srv
+  FetchIds.srv
+  FetchItemIds.srv
+  FetchItem.srv
+  InsertOrder.srv
+  FetchItemsOrdered.srv
+  FetchItemsOrderedByUser.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -111,8 +113,8 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES arnie_vision
- CATKIN_DEPENDS cv_bridge image_transport roscpp rospy sensor_msgs std_msgs message_runtime
+#  LIBRARIES arnie_kiosk
+ CATKIN_DEPENDS cv_bridge rospy sensor_msgs std_msgs message_runtime
 #  DEPENDS system_lib
 )
 
@@ -129,7 +131,7 @@ include_directories(
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/arnie_vision.cpp
+#   src/${PROJECT_NAME}/arnie_kiosk.cpp
 # )
 
 ## Add cmake target dependencies of the library
@@ -140,7 +142,7 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/arnie_vision_node.cpp)
+# add_executable(${PROJECT_NAME}_node src/arnie_kiosk_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -204,7 +206,7 @@ include_directories(
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_arnie_vision.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_arnie_kiosk.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
@@ -212,14 +214,8 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-add_executable(camera src/camera.cpp)
-target_link_libraries(camera ${catkin_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES})
-install(TARGETS camera RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+catkin_install_python(PROGRAMS src/gui.py DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
-add_executable(preview src/preview.cpp)
-target_link_libraries(preview ${catkin_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES})
-install(TARGETS preview RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
-
-catkin_install_python(PROGRAMS src/recognizer.py DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+catkin_install_python(PROGRAMS src/database_server.py DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 install(DIRECTORY launch/ DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch)
