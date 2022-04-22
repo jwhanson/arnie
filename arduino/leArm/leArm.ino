@@ -98,6 +98,17 @@ std_msgs::Bool rst_msg;
 ros::Publisher rst("rst", &rst_msg);
 ros::Subscriber<std_msgs::Bool> sub_rst("rst", rstCb);
 
+/* "flushed" topic */
+void flushedCb(const std_msgs::Bool& flushed_msg) {
+  if (flushed_msg.data == true) { // set flushed to true if flush process is complete
+    flushed = true;
+  }
+}
+std_msgs::Bool flushed_msg
+ros::Publisher flushed_pub("flushed", &flushed_msg);
+ros::Subscriber<std_msgs::Bool> flushed_sub("flushed", flushedCb);
+// TODO: Write flushed publish in the code
+
 /* "moveNum" topic */
 std_msgs::UInt16 moveNum_msg;
 ros::Publisher moveNum_pub("moveNum", &moveNum_msg);
@@ -116,6 +127,8 @@ void setup() {
   nh.advertise(status); // tell ROS master that we will publish to the "status" topic
   nh.advertise(rst);
   nh.advertise(moveNum_pub);
+  nh.advertise(flushed_pub);
+  nh.subscribe(flushed_sub);
   nh.subscribe(sub1); // subscribe to the "order" topic
   nh.subscribe(sub2); // subscribe to the "placed" topic
   nh.subscribe(sub_rst);
