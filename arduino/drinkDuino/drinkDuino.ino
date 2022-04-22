@@ -73,9 +73,9 @@ void setup() {
 } //end void setup()
 
 void loop() { // main loop, runs forever while powered
-//  nh.spinOnce(); // start spinning for ROS
-//  delay(5);
-  relayPulse(10000);
+  nh.spinOnce(); // start spinning for ROS
+  delay(5);
+//  relayPulse(10000);
 //  digitalWrite(relay2,HIGH);
 //  delay(1000);
 //  digitalWrite(relay2,LOW);
