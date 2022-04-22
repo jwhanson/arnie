@@ -52,14 +52,14 @@ int prevGoal = 69; // to check if goalNum changed at end of each loop
 int moveNum = 0; // this is the index for which move in the goals array we are on
 float timeStamp; // records the start of a timer to time moves
 float waitTime = 2000; //ms
-int goals[][3] = { {90,   90,   60},
-                   {0,    50,   140},
-                   {90,   120,  135},
-                   {180,  70,   180},
-                   {180,  20,   177},
-                   {180,  37,   177},
-                   {180,  80,   180},
-                   {0,    50,   140}  };
+int goals[][3] = { {90,   90,   60}, //0
+                   {0,    50,   140}, //1
+                   {90,   120,  135}, //2
+                   {180,  70,   180}, //3
+                   {180,  20,   177}, //4
+                   {180,  37,   177}, //5
+                   {180,  80,   180}, //6
+                   {0,    50,   140}  }; //7
 /* End State and Timing Variables */
 
 /* ROS Setup */
@@ -236,20 +236,20 @@ void loop() {
             state_setup_flag = false;   // now the flag is false, so we will not begin counting until the next step in the sequence.
         }
         if( millis() >= timeStamp + waitTime ){ //step forward in goal array for next movement
-            if(moveNum < 8){ moveNum += 1; }
-            else{ moveNum = 8; }
+            if(moveNum < 7){ moveNum += 1; }
+            else{ moveNum = 7; }
             state_setup_flag = true;
         }
         smoothWrite(goals[moveNum]);  // write the smoothed values to the servo
-        if( moveNum == 8 ){ // STATE TRANSITION
-//            if( state_setup_flag ){
-//                timeStamp = millis();
-//                state_setup_flag = false;
-//            }
-//            if( millis() >= timeStamp + waitTime ){
+        if( moveNum == 7 ){ // STATE TRANSITION
+            if( state_setup_flag ){
+                timeStamp = millis();
+                state_setup_flag = false;
+            }
+            if( millis() >= timeStamp + waitTime ){
                 goalNum = 6;
-//                state_setup_flag = true;
-//            }
+                state_setup_flag = true;
+            }
         }
     }
     else if( goalNum == 6 ){ /* Final State */
