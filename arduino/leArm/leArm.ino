@@ -97,6 +97,10 @@ void rstCb(const std_msgs::Bool& rst_msg){
 std_msgs::Bool rst_msg;
 ros::Publisher rst("rst", &rst_msg);
 ros::Subscriber<std_msgs::Bool> sub_rst("rst", rstCb);
+
+/* "moveNum" topic */
+std_msgs::UInt16 moveNum_msg;
+ros::Publisher moveNum_pub("moveNum", &moveNum_msg);
 /* End ROS Setup */
 
 
@@ -111,6 +115,7 @@ void setup() {
   nh.advertise(placed); // tell ROS master that we will publish to the "placed" topic
   nh.advertise(status); // tell ROS master that we will publish to the "status" topic
   nh.advertise(rst);
+  nh.advertise(moveNum_pub);
   nh.subscribe(sub1); // subscribe to the "order" topic
   nh.subscribe(sub2); // subscribe to the "placed" topic
   nh.subscribe(sub_rst);
@@ -213,7 +218,17 @@ void loop() {
 
     else if( goalNum == 4){ /* Cup Hold On Plate */
                                       // STATE CONTENT /* Do Nothing for Now */
-        if( served ){goalNum = 5;}    // STATE TRANSITION
+        if( served ){ // STATE TRANSITION
+          if(state_setup_flag){
+            timeStamp = millis();
+            state_setup_flag = false;
+          }
+          if( millis() >= timeStamp + waitTime ){
+            goalNum = 5;
+            state_setup_flag = true;
+          }
+          
+        }    
     }
     else if( goalNum == 5 ){ /* Move Cup Back to User */  
         if(state_setup_flag){         // STATE CONTENT: if sequence has just moved to this state, the flag will be true and the timer will begin counting once.
@@ -227,20 +242,20 @@ void loop() {
         }
         smoothWrite(goals[moveNum]);  // write the smoothed values to the servo
         if( moveNum == 8 ){ // STATE TRANSITION
-            if( state_setup_flag ){
-                timeStamp = millis();
-                state_setup_flag = false;
-            }
-            if( millis() >= timeStamp + waitTime ){
+//            if( state_setup_flag ){
+//                timeStamp = millis();
+//                state_setup_flag = false;
+//            }
+//            if( millis() >= timeStamp + waitTime ){
                 goalNum = 6;
-                state_setup_flag = true;
-            }
+//                state_setup_flag = true;
+//            }
         }
     }
     else if( goalNum == 6 ){ /* Final State */
         if(state_setup_flag){                              // STATE CONTENT /* Do nothing for now*/
-          timeStamp = millis();
-          state_setup_flag = false;
+            timeStamp = millis();
+            state_setup_flag = false;
         }
         if( millis() >= timeStamp + waitTime ){
             if( !sw1State ){
@@ -268,6 +283,8 @@ void loop() {
         rst_msg.data = rstNow;
         rst.publish(&rst_msg);
     }
+    moveNum_msg.data = moveNum;
+    moveNum_pub.publish(&moveNum_msg);
     nh.spinOnce();
     delay(15);
 } //end void loop()
