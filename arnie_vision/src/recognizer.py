@@ -89,8 +89,6 @@ class ArnieRecognizer(object):
 
     def do_recognition(self, frame):
         '''Main recognition sequence.'''
-        if not self.known_face_encodings:
-            return False
 
         #resize to 1/2 for faster processing
         small_frame = cv2.resize(frame, (0,0), fx=0.5, fy=0.5)
