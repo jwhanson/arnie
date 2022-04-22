@@ -88,101 +88,196 @@ void dispense(int drinkNum){
   //this function will eventually dispense drinks at the proper ratios by 
   //sending timed relay signals based on a "drink number" input
   //but for now it just does some random timed sequences for testing
+  
+  // Relay 1: (Far Left Bottle when looking at front) = SWEET TEA
+  // Relay 2: = Reg. TEA
+  // Relay 3 = REGULAR LEMONADE
+  // Relay 4 (Far right) = PINK LEMONADE
+  
   if(drinkNum==1){
-    digitalWrite(relay1,LOW);
-    digitalWrite(relay2,LOW);
-    digitalWrite(relay3,LOW);
-    digitalWrite(relay4,LOW);
+    // Classic sweet arnie - RELAY1, RELAY3
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
     delay(200);
-    digitalWrite(relay1,HIGH);
-    digitalWrite(relay2,HIGH);
-    digitalWrite(relay3,HIGH);
-    digitalWrite(relay4,HIGH);
-    delay(200);
-    digitalWrite(relay1,LOW);
-    digitalWrite(relay2,LOW);
-    digitalWrite(relay3,LOW);
-    digitalWrite(relay4,LOW);
-    delay(200);
-    digitalWrite(relay1,HIGH);
-    digitalWrite(relay2,HIGH);
-    digitalWrite(relay3,HIGH);
-    digitalWrite(relay4,HIGH);
-    delay(200);
-    digitalWrite(relay1,LOW);
-    digitalWrite(relay2,LOW);
-    digitalWrite(relay3,LOW);
-    digitalWrite(relay4,LOW);
-    delay(200);
-    digitalWrite(relay1,HIGH);
-    digitalWrite(relay2,HIGH);
-    digitalWrite(relay3,HIGH);
-    digitalWrite(relay4,HIGH);
+    digitalWrite(relay1,!HIGH);
+    digitalWrite(relay3,!HIGH);
+    delay(3500); // Pour ~4oz of each drink for 8 oz pour
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
     delay(200);
     srved_msg.data = true; // update actual ROS message variable
     served.publish( &srved_msg ); // publish to served topic
     //done = true;
   }
   else if(drinkNum == 2){
-    digitalWrite(relay1,LOW);
-    digitalWrite(relay2,LOW);
-    digitalWrite(relay3,HIGH);
-    digitalWrite(relay4,HIGH);
-    delay(1000);
-    digitalWrite(relay1,HIGH);
-    digitalWrite(relay2,HIGH);
-    digitalWrite(relay3,LOW);
-    digitalWrite(relay4,LOW);
-    delay(1000);
-    digitalWrite(relay1,LOW);
-    digitalWrite(relay2,LOW);
-    digitalWrite(relay3,HIGH);
-    digitalWrite(relay4,HIGH);
-    delay(1000);
-    digitalWrite(relay1,HIGH);
-    digitalWrite(relay2,HIGH);
-    digitalWrite(relay3,LOW);
-    digitalWrite(relay4,LOW);
-    delay(1000);
+    // Classic arnie (not sweet) - RELAY 2, RELAY3
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+    digitalWrite(relay2,!HIGH);
+    digitalWrite(relay3,!HIGH);
+    delay(3500);
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
     srved_msg.data = true; // update actual ROS message variable
     served.publish( &srved_msg ); // publish to served topic
 //    done = true;
   }
   else if(drinkNum == 3){
-    digitalWrite(relay1,LOW);
-    delay(500);
-    digitalWrite(relay1,HIGH);
-    delay(500);
-    digitalWrite(relay2,LOW);
-    delay(500);
-    digitalWrite(relay2,HIGH);
-    delay(500);
-    digitalWrite(relay3,LOW);
-    delay(500);
-    digitalWrite(relay3,HIGH);
-    delay(500);
-    digitalWrite(relay4,LOW);
-    delay(500);
-    digitalWrite(relay4,HIGH);
-    delay(500);
+    // Pink sweet arnie - RELAY 1, RELAY 4
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+    digitalWrite(relay1, !HIGH);
+    digitalWrite(relay4, !HIGH);
+    delay(3500);
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
     srved_msg.data = true; // update actual ROS message variable
     served.publish( &srved_msg ); // publish to served topic
 //    done = true;
   }
     else if(drinkNum == 4){
-    digitalWrite(relay1,LOW);
-    delay(500);
-    digitalWrite(relay2,LOW);
-    digitalWrite(relay1,HIGH);
-    delay(500);
-    digitalWrite(relay3,LOW);
-    digitalWrite(relay2,HIGH);    
-    delay(500);
-    digitalWrite(relay4,LOW);
-    digitalWrite(relay3,HIGH);
-    delay(500);
-    digitalWrite(relay4,HIGH);
-    delay(500);
+    // Pink arnie (non sweet) - RELAY 2, RELAY4
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+    digitalWrite(relay2, !HIGH);
+    digitalWrite(relay4, !HIGH);
+    delay(3500);    
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+//    done = true;
+    srved_msg.data = true; // update actual ROS message variable
+    served.publish( &srved_msg ); // publish to served topic
+  }
+    else if(drinkNum == 5){
+    // Sweet Tea - RELAY 1
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+    digitalWrite(relay1, !HIGH);
+    delay(7000);    
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+//    done = true;
+    srved_msg.data = true; // update actual ROS message variable
+    served.publish( &srved_msg ); // publish to served topic
+  }
+    else if(drinkNum == 6){
+    // REGULAR Tea - RELAY 2
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+    digitalWrite(relay2, !HIGH);
+    delay(7000);    
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+//    done = true;
+    srved_msg.data = true; // update actual ROS message variable
+    served.publish( &srved_msg ); // publish to served topic
+  }
+  else if(drinkNum == 7){
+    // REGULAR LEMONADE - RELAY 3
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+    digitalWrite(relay3, !HIGH);
+    delay(7000);    
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+//    done = true;
+    srved_msg.data = true; // update actual ROS message variable
+    served.publish( &srved_msg ); // publish to served topic
+  }
+ else if(drinkNum == 8){
+    // PINK LEMONADE - RELAY 4
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+    digitalWrite(relay4, !HIGH);
+    delay(7000);    
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+//    done = true;
+    srved_msg.data = true; // update actual ROS message variable
+    served.publish( &srved_msg ); // publish to served topic
+  }
+ else if(drinkNum == 9){
+    // Half n Half Tea - RELAY 1, RELAY 2
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+    digitalWrite(relay1, !HIGH);
+    digitalWrite(relay2, !HIGH);
+    delay(3500);    
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+//    done = true;
+    srved_msg.data = true; // update actual ROS message variable
+    served.publish( &srved_msg ); // publish to served topic
+  }
+else if(drinkNum == 10){
+    // All the fixins - RELAY 1, RELAY 2, RELAY 3, RELAY 4
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
+    digitalWrite(relay1, !HIGH);
+    digitalWrite(relay2, !HIGH);
+    digitalWrite(relay3, !HIGH);
+    digitalWrite(relay4, !HIGH);
+    delay(1700);    
+    digitalWrite(relay1,!LOW);
+    digitalWrite(relay2,!LOW);
+    digitalWrite(relay3,!LOW);
+    digitalWrite(relay4,!LOW);
+    delay(200);
 //    done = true;
     srved_msg.data = true; // update actual ROS message variable
     served.publish( &srved_msg ); // publish to served topic
