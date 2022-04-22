@@ -32,7 +32,8 @@ from PySide2.QtWidgets import (
 )
 from PySide2.QtGui import (
     QImage,
-    QPixmap
+    QPixmap,
+    QFont
 )
 import numpy as np
 import cv2
@@ -44,18 +45,22 @@ from arnie_kiosk.srv import (
     InsertUser,
     InsertOrder,
     FetchItemIds,
-    FetchItem
+    FetchItem,
+    FetchItemsOrdered,
+    FetchItemsOrderedByUser
 )
 from arnie_vision.srv import (
     AddFaceToRecog
 )
+from operator import countOf
 
 
 PICTURE_VIEW_WIDTH = 320
 PICTURE_VIEW_HEIGHT = 240
+DISPLAY_FONT_SIZE = 48
 TITLE_FONT_SIZE = 16
 BODY_FONT_SIZE = 12
-BUTTON_HEIGHT = 48
+BUTTON_HEIGHT = 64
 
 # https://stackoverflow.com/questions/18406149/pyqt-pyside-how-do-i-convert-qimage-into-opencvs-mat-format
 def convertQImageToMat(incomingImage):
@@ -79,6 +84,34 @@ class RosThread(QThread):
         rospy.spin()
 
 
+class ArnieBodyFont(QFont):
+    def __init__(self, point_size=None):
+        super().__init__()
+        if point_size == None:
+            self.setPointSize(BODY_FONT_SIZE)
+        else:
+            self.setPointSize(point_size)
+
+
+class ArnieTitleFont(QFont):
+    def __init__(self, point_size=None):
+        super().__init__()
+        if point_size == None:
+            self.setPointSize(TITLE_FONT_SIZE)
+        else:
+            self.setPointSize(point_size)
+
+
+class ArnieStylishFont(QFont):
+    def __init__(self, point_size=None):
+        super().__init__()
+        if point_size == None:
+            self.setPointSize(DISPLAY_FONT_SIZE)
+        else:
+            self.setPointSize(point_size)
+        self.setFamily("Pacifico")
+
+
 class StartPage(QWidget):
     """PySide Widget implementing the start page for Arnie."""
     goToRegistration = Signal()
@@ -92,17 +125,21 @@ class StartPage(QWidget):
         updateRecognitionSignal.connect(self.update_recognition)
 
         # Title Text | QLabel
-        self.title_text = QLabel("ArnieBot - The Original Iced Tea + Lemonade\nBeverage Service System")
-        font = self.title_text.font()
-        font.setPointSize(TITLE_FONT_SIZE)
-        self.title_text.setFont(font)
+        self.title_text = QLabel("Arnie")
+        arnie_font = ArnieStylishFont()
+        self.title_text.setFont(arnie_font)
         self.title_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
         # Subtitle Text | QLabel
+        self.subtitle_text = QLabel("The Original Iced Tea + Lemonade\nBeverage Service System")
+        title_font = ArnieTitleFont()
+        self.subtitle_text.setFont(title_font)
+        self.subtitle_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
+
+        # Recognition Text | QLabel
         self.recognition_text = QLabel("No faces detected...")
-        font = self.recognition_text.font()
-        font.setPointSize(BODY_FONT_SIZE)
-        self.recognition_text.setFont(font)
+        body_font = ArnieBodyFont()
+        self.recognition_text.setFont(body_font)
         self.recognition_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
         # Register Button | QPushButton
@@ -130,15 +167,16 @@ class StartPage(QWidget):
         # Overall layout
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.title_text)
+        main_layout.addWidget(self.subtitle_text)
         main_layout.addWidget(self.recognition_text)
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)
     
     def enter(self):
-        print('entering idle page')
+        print('entering start page')
 
     def leave(self):
-        print('leaving idle page')
+        print('leaving start page')
 
     @Slot(str)
     def update_recognition(self, name_str):
@@ -402,23 +440,77 @@ class MenuButton(QPushButton):
 
 
 class SpecialMenu(QWidget):
-    def __init__(self, dispatchOrderSignal):
+    def __init__(self, dispatchOrderSignal, fetch_menu_item_sh, fetch_items_ordered_sh, fetch_items_ordered_by_user_sh):
         super().__init__()
+
+        self.fetch_menu_item_sh = fetch_menu_item_sh
+        self.fetch_items_ordered_sh = fetch_items_ordered_sh
+        self.fetch_items_ordered_by_user_sh = fetch_items_ordered_by_user_sh
 
         #TODO: something special
         # for now just put menu item 1
+
+        # Spacer | QLabel
+        self.spacer = QLabel()
 
         # Special Item Button | MenuButton
         self.special_button = MenuButton('S', dispatchOrderSignal)
 
         # Special Item Text | QLabel
         self.special_text = QLabel("could be specialer")
+        self.special_text.setAlignment(Qt.AlignHCenter)
 
         special_layout = QVBoxLayout()
+        special_layout.addWidget(self.spacer)
         special_layout.addWidget(self.special_button)
         special_layout.addWidget(self.special_text)
 
         self.setLayout(special_layout)
+
+    def redraw_special(self, item_id, flavor_text):
+        response = self.fetch_menu_item_sh(item_id)
+        name = response.name
+        self.special_button.set_item_id(item_id)
+        self.special_button.set_display_text(name)
+        self.special_text.setText(flavor_text)
+        self.special_button.setEnabled(True)
+    
+    def update_special(self, user_id=None):
+        if user_id != None:
+            # Find user's most frequent item_id ordered
+            print(f"(SM: {type(user_id)}) user_id: {user_id}")
+            response = self.fetch_items_ordered_by_user_sh(user_id)
+            user_ordered_items = response.item_ids
+            print(f"(SM: {type(user_ordered_items)}) user_ordered_items: {user_ordered_items}")
+            if user_ordered_items:
+                user_ordered_items_counts = dict()
+                for item_id in set(user_ordered_items):
+                    user_ordered_items_counts[item_id] = user_ordered_items.count(item_id)
+                max_count = max(user_ordered_items_counts.values())
+                if countOf(user_ordered_items_counts.values(), max_count) > 1:
+                    #then we have more than one instance of max_count in our item counts; ie a tie
+                    pass
+                item_id = max(user_ordered_items_counts, key=user_ordered_items_counts.get) #ugly
+                self.redraw_special(item_id, "Your preferred\ndrink!")
+                return
+
+        # Find most frequent item_id in db
+        response = self.fetch_items_ordered_sh()
+        all_ordered_items = response.item_ids
+        if all_ordered_items:
+            all_ordered_items_counts = dict()
+            for item_id in set(all_ordered_items):
+                all_ordered_items_counts[item_id] = all_ordered_items.count(item_id)
+            max_count = max(all_ordered_items_counts.values())
+            if countOf(all_ordered_items_counts.values(), max_count) > 1:
+                #then we have more than one instance of max_count in our item counts; ie a tie
+                pass
+            item_id = max(all_ordered_items_counts, key=all_ordered_items_counts.get) #ugly
+            self.redraw_special(item_id, "Our most\npopular!")
+            return
+
+        # Just offer a default
+        self.redraw_special(2, "Try a\nclassic!") #classic arnie item_id
 
 
 class NormalMenu(QWidget):
@@ -525,20 +617,20 @@ class OrderPage(QWidget):
     cancelOrder = Signal()
     dispatchOrder = Signal(int)
 
-    def __init__(self, enterPageSignal, fetch_menu_item_ids_sh, fetch_menu_item_sh):
+    def __init__(self, enterPageSignal, fetch_menu_item_ids_sh, fetch_menu_item_sh, fetch_items_ordered_sh, fetch_items_ordered_by_user_sh):
         super().__init__()
 
         enterPageSignal.connect(self.enter)
 
         # Top Text | QLabel
-        self._order_text = QLabel("Thanks #NAME#, please select a beverage and tap 'Submit'") #TODO: add name
+        self._order_text = QLabel("UNINITIALIZED")
         font = self._order_text.font()
         font.setPointSize(BODY_FONT_SIZE)
         self._order_text.setFont(font)
         self._order_text.setAlignment(Qt.AlignVCenter) #default align left?
 
         # Special Menu Object | QWidget (Custom)
-        self.special_menu = SpecialMenu(self.dispatchOrder)
+        self.special_menu = SpecialMenu(self.dispatchOrder, fetch_menu_item_sh, fetch_items_ordered_sh, fetch_items_ordered_by_user_sh)
 
         # Normal Menu Object | QWidget (Custom)
         self.normal_menu = NormalMenu(self.dispatchOrder, fetch_menu_item_ids_sh, fetch_menu_item_sh)
@@ -548,7 +640,7 @@ class OrderPage(QWidget):
         core_layout.addWidget(self.special_menu)
         core_layout.addWidget(self.normal_menu)
 
-        # Submit Button | QPushButton
+        # Spacer | QPushButton
         self._spacer = QLabel("")
 
         # Cancel Button | QPushButton
@@ -573,11 +665,12 @@ class OrderPage(QWidget):
         print(f"entering order page; curr user {user_id}")
         first_name = user_name.split(" ")[0]
         if first_name == '':
-            self._order_text.setText(f"Please select a beverage and tap 'Submit'")
+            self._order_text.setText(f"Please select a beverage")
         else:
-            self._order_text.setText(f"Thanks {first_name}, please select a beverage and tap 'Submit'")
+            self._order_text.setText(f"Thanks {first_name}, please select a beverage")
             
         self.normal_menu.set_page(0) #reset the normal menu widget
+        self.special_menu.update_special(user_id)
 
     def leave(self):
         print("leaving order page")
@@ -642,9 +735,7 @@ class WaitPage(QWidget):
 
         # update text
         self._wait_header_text.setText("Enjoy!")
-        font = self._wait_header_text.font()
-        font.setFamily("Pacifico")
-        font.setPointSize(72) #TODO: fix hardcoded size
+        font = ArnieStylishFont()
         self._wait_header_text.setFont(font)
 
         self._wait_body_text.setText("Tap anywhere to return to the main menu.")
@@ -673,7 +764,7 @@ class MainWindow(QMainWindow):
     enterOrder = Signal(int,str)
     enterWait = Signal()
 
-    def __init__(self, ros_order_pub, insert_user_sh, insert_order_sh, add_face_to_recog_sh, fetch_menu_item_ids_sh, fetch_menu_item_sh):
+    def __init__(self, ros_order_pub, insert_user_sh, insert_order_sh, add_face_to_recog_sh, fetch_menu_item_ids_sh, fetch_menu_item_sh, fetch_items_ordered_sh, fetch_items_ordered_by_user_sh):
         super().__init__()
         # ROS setup
         self.bridge = CvBridge()
@@ -715,7 +806,7 @@ class MainWindow(QMainWindow):
         self._confirmation_page.confirmUserInfo.connect(self.insert_user_info)
 
         # Page 3 | Order Page
-        self._order_page = OrderPage(self.enterOrder, fetch_menu_item_ids_sh, fetch_menu_item_sh)
+        self._order_page = OrderPage(self.enterOrder, fetch_menu_item_ids_sh, fetch_menu_item_sh, fetch_items_ordered_sh, fetch_items_ordered_by_user_sh)
         self._stacked_widget.addWidget(self._order_page)
         self._order_page.cancelOrder.connect(self.go_to_start)
         self._order_page.dispatchOrder.connect(self.dispatch_order)
@@ -733,6 +824,8 @@ class MainWindow(QMainWindow):
     def go_to_start(self):
         self.go_to_page(0)
         self.active_user_id = 0 #reset the active user at the start page
+        self.active_user_name = ''
+        self.updateRecognition.emit('_empty')
         self.enterStart.emit()
 
     def go_to_registration(self):
@@ -747,6 +840,7 @@ class MainWindow(QMainWindow):
     def guest_order(self):
         self.go_to_page(3) #hardcoding order page index
         self.active_user_id = 0 #order here is important: I need to update the page, then reset the user_id, then run order page's setup
+        self.active_user_name = ''
         self.enterOrder.emit(0, '') #zero represents the guest user
 
     @Slot(str,str,QImage)
@@ -864,6 +958,8 @@ if __name__ == "__main__":
     rospy.wait_for_service('add_face_to_recog')
     rospy.wait_for_service('fetch_item_ids')
     rospy.wait_for_service('fetch_item')
+    rospy.wait_for_service('fetch_items_ordered')
+    rospy.wait_for_service('fetch_items_ordered_by_user')
     print("Success! Database services are ready")
 
     #create service handle for calling service
@@ -872,9 +968,19 @@ if __name__ == "__main__":
     add_face_to_recog_sh = rospy.ServiceProxy('add_face_to_recog', AddFaceToRecog)
     fetch_item_ids_sh = rospy.ServiceProxy('fetch_item_ids', FetchItemIds)
     fetch_item_sh = rospy.ServiceProxy('fetch_item', FetchItem)
+    fetch_items_ordered_sh = rospy.ServiceProxy('fetch_items_ordered', FetchItemsOrdered)
+    fetch_items_ordered_by_user_sh = rospy.ServiceProxy('fetch_items_ordered_by_user', FetchItemsOrderedByUser)
 
     app = QApplication()
-    window = MainWindow(order_pub, insert_user_sh, insert_order_sh, add_face_to_recog_sh, fetch_item_ids_sh, fetch_item_sh)
+    window = MainWindow(
+        order_pub,
+        insert_user_sh,
+        insert_order_sh,
+        add_face_to_recog_sh,
+        fetch_item_ids_sh,
+        fetch_item_sh,
+        fetch_items_ordered_sh,
+        fetch_items_ordered_by_user_sh)
     rospy.Subscriber("frame", sensor_msgs.msg.Image, window.frame_callback)
     rospy.Subscriber("recoged_names", std_msgs.msg.String, window.recoged_names_callback)
     rospy.Subscriber("served", std_msgs.msg.Bool, window.served_callback)

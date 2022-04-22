@@ -19,7 +19,9 @@ from arnie_kiosk.srv import (
     FetchUser, FetchUserResponse,
     FetchIds, FetchIdsResponse,
     FetchItemIds, FetchItemIdsResponse,
-    FetchItem, FetchItemResponse
+    FetchItem, FetchItemResponse,
+    FetchItemsOrdered, FetchItemsOrderedResponse,
+    FetchItemsOrderedByUser, FetchItemsOrderedByUserResponse
 )
 
 
@@ -133,10 +135,34 @@ class ArnieDatabaseServer(object):
         row = cursor.fetchall()[0]
         cursor.close()
 
-        print(row)
         name = row[0]
 
         return FetchItemResponse(name)
+    
+    def fetch_items_ordered(self, request):
+        fetch_items_ordered_query = """SELECT item_id FROM orders"""
+
+        cursor = self.conn.cursor()
+        cursor.execute(fetch_items_ordered_query)
+        rows = cursor.fetchall()
+        cursor.close()
+
+        item_ids = [ id for row in rows for id in row ]
+
+        return FetchItemsOrderedResponse(item_ids)
+
+    def fetch_items_ordered_by_user(self, request):
+        fetch_items_ordered_by_user_query = """SELECT item_id FROM orders WHERE user_id=%s"""
+        fetch_items_ordered_by_user_payload = (request.user_id,)
+
+        cursor = self.conn.cursor()
+        cursor.execute(fetch_items_ordered_by_user_query, fetch_items_ordered_by_user_payload)
+        rows = cursor.fetchall()
+        cursor.close()
+
+        item_ids = [ id for row in rows for id in row ]   
+
+        return FetchItemsOrderedByUserResponse(item_ids)
 
 
 def main():
@@ -149,6 +175,8 @@ def main():
     rospy.Service('fetch_ids', FetchIds, db_server.fetch_user_ids)
     rospy.Service('fetch_item_ids', FetchItemIds, db_server.fetch_item_ids)
     rospy.Service('fetch_item', FetchItem, db_server.fetch_item)
+    rospy.Service('fetch_items_ordered', FetchItemsOrdered, db_server.fetch_items_ordered)
+    rospy.Service('fetch_items_ordered_by_user', FetchItemsOrderedByUser, db_server.fetch_items_ordered_by_user)
 
     rospy.spin()
 
