@@ -51,6 +51,14 @@ ros::Subscriber<std_msgs::Bool> sub2("placed", placedCb); //create subscriber fo
 /* "served" topic */
 std_msgs::Bool srved_msg; 
 ros::Publisher served("served", &srved_msg);
+
+/* "flushed" topic */
+
+/* "rst" topic */ //MAY NEED TO BE MODIFIED. Copied format from leArm rst pub/sub
+std_msgs::Bool rst_msg
+ros::Publisher rst("rst", &rst_msg);
+ros::Subscriber<std_msgs::Bool> sub_rst("rst", rstCb);
+
 /* End ROS Setup */
 
 void setup() {
