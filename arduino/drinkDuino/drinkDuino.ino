@@ -55,7 +55,8 @@ ros::Publisher served("served", &srved_msg);
 /* "flushed" topic */
 
 /* "rst" topic */ //MAY NEED TO BE MODIFIED. Copied format from leArm rst pub/sub
-std_msgs::Bool rst_msg
+void rstCb( const std_msgs::Bool& rst_msg);
+std_msgs::Bool rst_msg;
 ros::Publisher rst("rst", &rst_msg);
 ros::Subscriber<std_msgs::Bool> sub_rst("rst", rstCb);
 
