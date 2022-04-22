@@ -2,13 +2,11 @@
  *
  * Author:
  * Kirk Boyd
- * 
  *
  * Description:
  * This is the code to run on the DFRObot Arduino Romeo in the front of Arnie.
  * The Romeo controls the servos in the LeArm as well as reads both switched.
  */
-
 #include <ros.h>
 // pull in important message info for rosserial library Arduino compatibility
 #include <std_msgs/String.h> 
@@ -29,12 +27,6 @@
 
 //create servo objects for each servo for the Servo library
 Servo servo0; Servo servo1; Servo servo2; Servo servo3;
-int getCup[] = {0,40,180,40}; // these are good positions to receive the cup
-bool orderUp = false; //whether we have the order and can start moving
-bool isPlaced = false; //has the cup been successfully placed on the platform?
-bool serving = false; //are we attempting to place cup and serve a drink?
-bool served = false; //are the valves done dispensing?
-bool sw1State;  bool sw2State; //stores whether switch is depressed or not
 
 /* Smoothing Variables */
 int goal0 = 90;       int goal1 = 90;       int goal2=90;         int goal3=90;
@@ -44,38 +36,22 @@ float ratio1 = 0.03; //ratio of goal position
 float ratio2 = 0.97; //ratio of previous position
 /* End Smoothing Variables */
 
-/* stupid workaround variables for positioning logic */
-// these should get reduced/removed/improved idk
-bool startedCounting = false;
-bool countingAgain = false;
-bool countingAgainAgain = false;
-bool counting4;
-bool counting5;
-bool done = false;
+/* State and Timing Variables */
+bool orderUp = false; //whether we have the order and can start moving
+bool isPlaced = false; //has the cup been successfully placed on the platform?
+bool serving = false; //are we attempting to place cup and serve a drink?
+bool served = false; //are the valves done dispensing?
+bool sw1State;  bool sw2State; //stores whether switch is depressed or not
 bool prevPlaced = false;
-float timer; //ms
-float timer2;
-float timer3;
-float timer4;
-float timer5;
-
-int status_string;
-int prevString;
-int string_msg;
-
-bool gotCup;
-int curr_goal_index = 0;
-float timeStamp;
-float waitTime = 2000; //ms
-int goalNum = 0;
-int prevGoal;
+bool gotCup = false; // stays true after end effector switch has been triggered to avoid bugs if cup shifts and releases the switch
+bool state_setup_flag; // checks whether timer has been started
+bool flushed = false; // one time check to ensure tubes are filled with liquid
+bool rstNow; //if this is true a reset needs to happen and then it should get switched back as soon as that is done
+int goalNum = 0; // to track which state the main loop is in
+int prevGoal = 0; // to check if goalNum changed at end of each loop
 int moveNum = 0; // this is the index for which move in the goals array we are on
-bool state_setup_flag; //checks whether timer has been started
-bool flushed = false; 
-bool rstNow;
-//becomes true after the tubes have been flushed once when 
-//everything is initially setup so that tubes have liquid in them.
-
+float timeStamp; // records the start of a timer to time moves
+float waitTime = 2000; //ms
 int goals[][3] = { {90,   90,   60},
                    {0,    50,   140},
                    {90,   120,  135},
@@ -84,11 +60,10 @@ int goals[][3] = { {90,   90,   60},
                    {180,  37,   177},
                    {180,  80,   180},
                    {0,    50,   140}  };
-/* End FSM Variables */
+/* End State and Timing Variables */
 
 /* ROS Setup */
 ros::NodeHandle nh;
-
 /* "order" topic */
 void orderCb(const std_msgs::UInt16& order_msg){
   if (order_msg.data != 0){ // if an order message is found in the topic
@@ -99,21 +74,17 @@ void orderCb(const std_msgs::UInt16& order_msg){
   }
 }
 ros::Subscriber<std_msgs::UInt16> sub1("order", orderCb);
-
 /* "served" topic */
 void servedCb(const std_msgs::Bool& served_msg){
   served = served_msg.data;
 }
 ros::Subscriber<std_msgs::Bool> sub2("served", servedCb);
-
 /* "placed" topic */
 std_msgs::Bool placed_msg;
 ros::Publisher placed("placed", &placed_msg);
-
 /* "status" topic */
 std_msgs::UInt16 status_msg;
 ros::Publisher status("status", &status_msg);
-
 /* "rst" topic */
 void rstCb(const std_msgs::Bool& rst_msg){
   if (rst_msg.data == true){    
@@ -128,6 +99,10 @@ std_msgs::Bool rst_msg;
 ros::Publisher rst("rst", &rst_msg);
 ros::Subscriber<std_msgs::Bool> sub_rst("rst", rstCb);
 /* End ROS Setup */
+
+
+
+
 
 void setup() {
   pinMode(sw1, INPUT); pinMode(sw2, INPUT); //tell arduino the switches are inputs
@@ -144,27 +119,24 @@ void setup() {
 }// end void setup()
 
 
+
+
+
+
 void loop() {
     sw1State = !digitalRead(sw1); //buttons read high when pressed, so we invert them 
     sw2State = !digitalRead(sw2); //which makes pressed = true and not pressed = false
     if( sw1State ){
         if( orderUp ){
-            gotCup = true; 
-            // this should stay true from the first time the cup is registered in the 
-            // gripper and an order is placed until the order is completed as a failsafe
-            // against losing contact with the switch
+            gotCup = true; // this should stay true from the first time the cup is registered in the gripper and an order is placed until the order is completed as a failsafe against losing contact with the switch
         }
     }
     if( sw2State ){
         if( gotCup ){
-            isPlaced = true;
-            // this should stay true from the first time the cup touches the stand
-            // in order to prevent jitter or weirdness if the cup moves and the switch
-            // does not stay depressed
+            isPlaced = true; // this should stay true from the first time the cup touches the stand in order to prevent jitter or weirdness if the cup moves and the switch does not stay depressed
         }
     }
     prevGoal = goalNum; // to check if we moved at the end
-    
     if( goalNum == 0 ){ /* Initial Ready State with Arm at Home and No Order */
         // STATE CONTENT
         smoothWrite(goals[0]); // apply smoothing and write to servos      
@@ -220,26 +192,3 @@ void loop() {
     nh.spinOnce();
     delay(15);
 } //end void loop()
-
-void smoothWrite(int vals[3]){ //applies the smoothing filter to the array and writes to the servos
-    goal3 = vals[1] + (140 - vals[2]); //calculate last servo angle to hold cup level
-
-    goal0smooth = (vals[0] * ratio1) + (goal0prev * ratio2);
-    goal1smooth = (vals[1] * ratio1) + (goal1prev * ratio2);
-    goal2smooth = (vals[2] * ratio1) + (goal2prev * ratio2);
-    goal3smooth = (goal3   * ratio1) + (goal3prev * ratio2);
-    goal0prev = goal0smooth;
-    goal1prev = goal1smooth;
-    goal2prev = goal2smooth;
-    goal3prev = goal3smooth;
-    servo0.write(goal0smooth);
-    servo1.write(goal1smooth);
-    servo2.write(goal2smooth);
-    servo3.write(goal3smooth);
-}
-
-void printSw(){ // print switches nicely formatted for debug
-  Serial.print(sw1State);
-  Serial.print(" , ");
-  Serial.println(sw2State);
-}
