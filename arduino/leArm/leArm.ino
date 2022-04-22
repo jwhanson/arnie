@@ -282,6 +282,7 @@ void loop() {
     if(isReset != rstNow){
         rst_msg.data = rstNow;
         rst.publish(&rst_msg);
+        isReset = rstNow; 
     }
     moveNum_msg.data = moveNum;
     moveNum_pub.publish(&moveNum_msg);
