@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS menu (
     ingredients TEXT
 );"""
 
-conn = psycopg2.connect(user="jon",
-                        password="jon",
+conn = psycopg2.connect(user="ubuntu",
+                        password="ubuntu",
                         database="postgres")
 
 cursor = conn.cursor()

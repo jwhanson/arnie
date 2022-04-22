@@ -56,13 +56,13 @@ from arnie_vision.srv import (
 )
 from operator import countOf
 
-
-PICTURE_VIEW_WIDTH = 320
-PICTURE_VIEW_HEIGHT = 240
-DISPLAY_FONT_SIZE = 48
-TITLE_FONT_SIZE = 16
-BODY_FONT_SIZE = 12
-BUTTON_HEIGHT = 64
+# Tune UI element sizes here
+PICTURE_VIEW_WIDTH = 480
+PICTURE_VIEW_HEIGHT = 360
+DISPLAY_FONT_SIZE = 64
+TITLE_FONT_SIZE = 24
+BODY_FONT_SIZE = 14
+BUTTON_HEIGHT = 80
 
 # https://stackoverflow.com/questions/18406149/pyqt-pyside-how-do-i-convert-qimage-into-opencvs-mat-format
 def convertQImageToMat(incomingImage):
@@ -113,6 +113,18 @@ class ArnieStylishFont(QFont):
             self.setPointSize(point_size)
         self.setFamily("Pacifico")
 
+class ArnieButton(QPushButton):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args)
+
+        if 'font' not in kwargs:
+            default_font = ArnieBodyFont()
+            self.setFont(default_font)
+        else:
+            self.setFont(kwargs['font'])
+
+        self.setFixedHeight(BUTTON_HEIGHT)
+
 
 class StartPage(QWidget):
     """PySide Widget implementing the start page for Arnie."""
@@ -145,19 +157,16 @@ class StartPage(QWidget):
         self.recognition_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
         # Register Button | QPushButton
-        self.register_button = QPushButton("Register")
-        self.register_button.setFixedHeight(BUTTON_HEIGHT)
+        self.register_button = ArnieButton("Register")
         self.register_button.clicked.connect(self.register)
 
         # Login Button | QPushButton
-        self.login_button = QPushButton("Login")
-        self.login_button.setFixedHeight(BUTTON_HEIGHT)
+        self.login_button = ArnieButton("Login")
         self.login_button.setEnabled(False) #disabled until user is recognized
         self.login_button.clicked.connect(self.login)
 
         # Guest Button | QPushButton
-        self.guest_button = QPushButton("Guest")
-        self.guest_button.setFixedHeight(BUTTON_HEIGHT)
+        self.guest_button = ArnieButton("Guest")
         self.guest_button.clicked.connect(self.guest_order)
 
         # Layout for bottom row of buttons
@@ -222,42 +231,43 @@ class RegistrationPage(QWidget):
         enterPageSignal.connect(self.enter)
         updateFrameSignal.connect(self.set_image)
 
+        body_font = ArnieBodyFont()
+        title_font = ArnieTitleFont()
+
         # Greeting Text | QLabel
         self.greeting_text = QLabel("Welcome new user!\nPlease enter your name\nand take a profile picture")
-        font = self.greeting_text.font()
-        font.setPointSize(BODY_FONT_SIZE)
-        self.greeting_text.setFont(font)
+        self.greeting_text.setFont(body_font)
         self.greeting_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
         # First Name Input Label | QLabel
         self.first_name_label = QLabel("First Name:")
+        self.first_name_label.setFont(body_font)
         self.first_name_label.setAlignment(Qt.AlignLeft|Qt.AlignBottom)
-        self.first_name_label.setFixedHeight(24)
 
         # First Name Input Textbox | QLineEdit
         self.first_name_edit = QLineEdit("Arnold")
-        self.first_name_edit.setFixedWidth(180)
+        self.first_name_edit.setFont(body_font)
+        self.first_name_edit.setFixedWidth(240)
 
         # Last Name Input Label | QLabel
         self.last_name_label = QLabel("Last Name:")
+        self.last_name_label.setFont(body_font)
         self.last_name_label.setAlignment(Qt.AlignLeft|Qt.AlignBottom)
-        self.last_name_label.setFixedHeight(24)
 
         # Last Name Input Textbox | QLineEdit
         self.last_name_edit = QLineEdit("Palmer")
-        self.last_name_edit.setFixedWidth(180)
+        self.last_name_edit.setFont(body_font)
+        self.last_name_edit.setFixedWidth(240)
 
         # Spacer (blank) | QLabel
-        self.spacer_label = QLabel("")
+        self.spacer_label = QLabel("") #seems hacky
 
         # Take Picture Button | QPushButton
-        self.take_picture_button = QPushButton("Take Picture")
-        self.take_picture_button.setFixedHeight(BUTTON_HEIGHT)
+        self.take_picture_button = ArnieButton("Take Picture")
         self.take_picture_button.clicked.connect(self.take_picture)
     
         # Cancel Button | QPushButton
-        self.cancel_button = QPushButton("Cancel")
-        self.cancel_button.setFixedHeight(BUTTON_HEIGHT)
+        self.cancel_button = ArnieButton("Cancel")
         self.cancel_button.clicked.connect(self.cancel)
 
         # Layout for name input and buttons
@@ -321,26 +331,23 @@ class ConfirmationPage(QWidget):
 
         enterPageSignal.connect(self.enter)
 
+        body_font = ArnieBodyFont()
+
         # Confirmation Text | Qlabel
         self._confirm_text = QLabel("Does this look OK?")
-        font = self._confirm_text.font()
-        font.setPointSize(BODY_FONT_SIZE)
-        self._confirm_text.setFont(font)
+        self._confirm_text.setFont(body_font)
         self._confirm_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
         # Approve Button | QPushButton
-        self._approve_button = QPushButton("Approve")
-        self._approve_button.setFixedHeight(BUTTON_HEIGHT)
+        self._approve_button = ArnieButton("Approve")
         self._approve_button.clicked.connect(self.approve)
 
         # Retake Button | QPushButton
-        self._retake_button = QPushButton("Retake")
-        self._retake_button.setFixedHeight(BUTTON_HEIGHT)
+        self._retake_button = ArnieButton("Retake")
         self._retake_button.clicked.connect(self.retake)
 
         # Cancel Button | QPushButton
-        self._cancel_button = QPushButton("Cancel")
-        self._cancel_button.setFixedHeight(BUTTON_HEIGHT)
+        self._cancel_button = ArnieButton("Cancel")
         self._cancel_button.clicked.connect(self.cancel)
 
         # Layout for buttons stacked vertically
@@ -358,9 +365,7 @@ class ConfirmationPage(QWidget):
         self._first_name = "NOINIT_FIRST" #if you see these, then enter() failed
         self._last_name = "NOINIT_LAST"
         self._profile_name = QLabel(f"Name: '{self._first_name} {self._last_name}'")
-        font = self._profile_name.font()
-        font.setPointSize(BODY_FONT_SIZE)
-        self._profile_name.setFont(font)
+        self._profile_name.setFont(body_font)
         self._profile_name.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
         self._profile_name.setFixedHeight(32) #TODO: fix size hardcode
 
@@ -410,8 +415,12 @@ class MenuButton(QPushButton):
 
         self.dispatchOrderSignal = dispatchOrderSignal
 
-        self.setFixedHeight(90) #TODO no hard code?
+        body_font = ArnieBodyFont()
+
+        self.setFixedHeight(120) #TODO no hard code?
+        self.setFixedWidth(120)
         self.setEnabled(False)
+        self.setFont(body_font)
         self.item_id = 0
 
         self.clicked.connect(self.order_item)
@@ -529,7 +538,7 @@ class NormalMenu(QWidget):
 
         # Configure Button Layout dimentions
         num_rows = 2
-        num_cols = 3
+        num_cols = 4
 
         # Setup Generic MenuButtons
         self.menu_buttons = []
@@ -554,14 +563,14 @@ class NormalMenu(QWidget):
 
         # Scroll Menu Left Button | QPushButton
         self._scroll_left_button = QPushButton("<")
-        self._scroll_left_button.setFixedHeight(200)
-        self._scroll_left_button.setFixedWidth(32)
+        self._scroll_left_button.setFixedHeight(280)
+        self._scroll_left_button.setFixedWidth(48)
         self._scroll_left_button.clicked.connect(self.scroll_left)
 
         # Scroll Menu Right Button | QPushButton
         self._scroll_right_button = QPushButton(">")
-        self._scroll_right_button.setFixedHeight(200)
-        self._scroll_right_button.setFixedWidth(32)
+        self._scroll_right_button.setFixedHeight(280)
+        self._scroll_right_button.setFixedWidth(48)
         self._scroll_right_button.clicked.connect(self.scroll_right)
 
         # Main Layout
@@ -624,11 +633,11 @@ class OrderPage(QWidget):
 
         enterPageSignal.connect(self.enter)
 
+        body_font = ArnieBodyFont()
+
         # Top Text | QLabel
         self._order_text = QLabel("UNINITIALIZED")
-        font = self._order_text.font()
-        font.setPointSize(BODY_FONT_SIZE)
-        self._order_text.setFont(font)
+        self._order_text.setFont(body_font)
         self._order_text.setAlignment(Qt.AlignVCenter) #default align left?
 
         # Special Menu Object | QWidget (Custom)
@@ -646,8 +655,7 @@ class OrderPage(QWidget):
         self._spacer = QLabel("")
 
         # Cancel Button | QPushButton
-        self._cancel_button = QPushButton("Cancel")
-        self._cancel_button.setFixedHeight(BUTTON_HEIGHT)
+        self._cancel_button = ArnieButton("Cancel")
         self._cancel_button.clicked.connect(self.cancel)
 
         # Layout for cancel button
@@ -693,23 +701,21 @@ class WaitPage(QWidget):
         enterPageSignal.connect(self.enter)
         doneWaitingSignal.connect(self.done_waiting)
         
+        self._title_font = ArnieTitleFont()
+        self._stylish_font = ArnieStylishFont()
+        self._body_font = ArnieBodyFont()
+
         #controls whether user can tap to continue
         self.served = False
 
         # Header Wait Text | QLabel
         self._wait_header_text = QLabel("UNINITIALIZED")
-        font = self._wait_header_text.font()
-        font.setPointSize(TITLE_FONT_SIZE)
-        self._default_title_font = font #there's a better way to modularize this
-        self._wait_header_text.setFont(font)
+        self._wait_header_text.setFont(self._title_font)
         self._wait_header_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
         # Body Wait Text | QLabel
         self._wait_body_text = QLabel("UNINITIALIZED")
-        font = self._wait_body_text.font()
-        font.setPointSize(BODY_FONT_SIZE)
-        self._default_body_font = font #there's a better way to modularize this
-        self._wait_body_text.setFont(font)
+        self._wait_body_text.setFont(self._body_font)
         self._wait_body_text.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
 
         # Set Layout
@@ -723,11 +729,10 @@ class WaitPage(QWidget):
         self.served = False
 
         # update text
-        self._wait_header_text.setText("Please wait,")
-        self._wait_header_text.setFont(self._default_title_font)
+        self._wait_header_text.setText("Please hand your cup to Arnie")
+        self._wait_header_text.setFont(self._title_font)
 
-        self._wait_body_text.setText("Arnie is preparing your beverage")
-        self._wait_body_text.setFont(self._default_body_font)
+        self._wait_body_text.setText("and be patient as he prepares your beverage.")
 
     def leave(self):
         print("leaving wait page")
@@ -737,13 +742,9 @@ class WaitPage(QWidget):
 
         # update text
         self._wait_header_text.setText("Enjoy!")
-        font = ArnieStylishFont()
-        self._wait_header_text.setFont(font)
+        self._wait_header_text.setFont(self._stylish_font)
 
         self._wait_body_text.setText("Tap anywhere to return to the main menu.")
-        font = self._wait_body_text.font()
-        font.setPointSize(BODY_FONT_SIZE)
-        self._wait_body_text.setFont(font)
     
     def mousePressEvent(self, event):
         if self.served == True:
@@ -949,7 +950,7 @@ class MainWindow(QMainWindow):
 
 
 if __name__ == "__main__":
-    order_pub = rospy.Publisher("order", std_msgs.msg.UInt16)
+    order_pub = rospy.Publisher("order", std_msgs.msg.UInt16, queue_size=None)
 
     print("Blocking until registered with ROS master...")
     rospy.init_node("kiosk")
@@ -986,5 +987,5 @@ if __name__ == "__main__":
     rospy.Subscriber("frame", sensor_msgs.msg.Image, window.frame_callback)
     rospy.Subscriber("recoged_names", std_msgs.msg.String, window.recoged_names_callback)
     rospy.Subscriber("served", std_msgs.msg.Bool, window.served_callback)
-    window.show() #TODO: Make fullscreen after debug!
+    window.showFullScreen() #TODO: Make fullscreen after debug!
     sys.exit(app.exec_())

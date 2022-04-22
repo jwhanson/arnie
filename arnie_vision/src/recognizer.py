@@ -150,7 +150,7 @@ class ArnieRecognizer(object):
         return AddFaceToRecogResponse(True)
 
 def main():
-    pub = rospy.Publisher("recoged_names", std_msgs.msg.String)
+    pub = rospy.Publisher("recoged_names", std_msgs.msg.String, queue_size=None)
 
     print("Blocking until database services are available...")
     rospy.wait_for_service('fetch_ids')

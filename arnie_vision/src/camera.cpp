@@ -54,8 +54,8 @@ int main(int argc, char** argv)
     cv::Mat frame;
     sensor_msgs::ImagePtr msg;
 
-    // Setup the camera to pub at 30 Hz
-    ros::Rate loop_rate(30);
+    // Setup the camera to pub at 5 Hz
+    ros::Rate loop_rate(5);
 
     // Main loop
     while (nh.ok()) {

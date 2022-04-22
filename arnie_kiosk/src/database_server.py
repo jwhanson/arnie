@@ -45,8 +45,8 @@ CREATE TABLE IF NOT EXISTS orders (
 class ArnieDatabaseServer(object):
     def __init__(self):
         self.bridge = CvBridge()
-        self.conn = psycopg2.connect(user="jon",
-                                     password="jon",
+        self.conn = psycopg2.connect(user="ubuntu",
+                                     password="ubuntu",
                                      database="postgres")
         self.bridge = CvBridge()
         
