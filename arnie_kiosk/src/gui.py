@@ -8,9 +8,11 @@ An important design pressure is to decouple the windows as much as possible.
 Evantually, perhaps a ArniePage parent class that defines the interface could
 help with this.
 
-In the latest update, the Registration Page now gets its images for video
-feedback from the 'frame' ROS topic, which is published by a 'camera' ROS node
-and consumed by the 'gui' and 'recognizer' nodes.
+In the latest update, we're a go for launch! Arnie now has all functionality
+implemented, which includes: login by face recognition, database interaction
+for registration and for all orders, an orders page with peronalized and 
+regular menus, and simple integration with the service side that publishes
+an order and subscribes to served.
 '''
 import sys
 from PySide2.QtCore import (
