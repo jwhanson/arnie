@@ -44,6 +44,7 @@ bool served = false; //are the valves done dispensing?
 bool sw1State;  bool sw2State; //stores whether switch is depressed or not
 bool prevPlaced = false;
 bool gotCup = false; // stays true after end effector switch has been triggered to avoid bugs if cup shifts and releases the switch
+bool removedCup = false; // latch for final state logic
 bool state_setup_flag; // checks whether timer has been started
 bool flushed = false; // one time check to ensure tubes are filled with liquid
 int goalNum = 0; // to track which state the main loop is in
@@ -124,6 +125,7 @@ void setup() {
 void reset(){
   orderUp = false;
   gotCup = false;
+  removedCup = false;
   isPlaced = false;
   served = false;
   goalNum = 0;
@@ -290,15 +292,15 @@ void loop() {
 
         //state transition
         if( !sw1State ) {
-            gotCup = false;
+            removedCup = true; // latch a removed cup bool
             if( state_setup_flag ){
                 timeStamp = millis();
                 state_setup_flag = false;
             }
         }
 
-        if( millis() >= timeStamp + waitTime ) {
-            reset();
+        if (removedCup == True && millis() >= timeStamp + waitTime) {
+            reset(); // transitions back to reset / level state
         }
     }
 
