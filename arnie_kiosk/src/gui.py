@@ -863,8 +863,12 @@ class MainWindow(QMainWindow):
         try:
             response = self.insert_user_sh(first_name, last_name, profile_picture_msg)
             user_id = response.user_id
-            # print(f"({type(user_id)})user_id: {user_id}")
+            print(f"MW: insert ({type(user_id)}) user_id: {user_id}")
+
+            profile_picture_cv = self.latest_frame.copy() #try regenerating the message
+            profile_picture_msg = self.bridge.cv2_to_imgmsg(cvim=profile_picture_cv, encoding="passthrough")
             self.add_face_to_recog_sh(user_id, first_name, last_name, profile_picture_msg)
+
             self.go_to_page(3) #order page
             self.active_user_id = user_id
             self.active_user_name = " ".join([first_name, last_name])

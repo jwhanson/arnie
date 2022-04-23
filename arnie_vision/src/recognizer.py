@@ -108,10 +108,11 @@ class ArnieRecognizer(object):
 
             #use known face with the smallest dist to the new face
             face_distances = face_recognition.face_distance(self.known_face_encodings, face_encoding)
-            best_match_index = np.argmin(face_distances)
-            if matches[best_match_index]:
-                name = self.known_face_names[best_match_index]
-            
+            if face_distances.size > 0:
+                best_match_index = np.argmin(face_distances)
+                if matches[best_match_index]:
+                    name = self.known_face_names[best_match_index]
+
             self.face_names.append(name)
 
         self.show_names()
@@ -139,8 +140,9 @@ class ArnieRecognizer(object):
     
     def add_new_face(self, request):
         name = str(request.user_id)+"_"+request.first_name+"_"+request.last_name
+        print(f'RZ: Adding face ({request.user_id}) {request.first_name} {request.last_name}')
         profile_picture_msg = request.profile_picture
-        profile_picture = self.bridge.imgmsg_to_cv2(profile_picture_msg)
+        profile_picture = self.bridge.imgmsg_to_cv2(profile_picture_msg).copy()
         # profile_picture = cv2.cvtColor(profile_picture, cv2.COLOR_BGR2RGB)
         face_encoding = face_recognition.face_encodings(profile_picture)[0]
         self.known_face_encodings.append(face_encoding)
