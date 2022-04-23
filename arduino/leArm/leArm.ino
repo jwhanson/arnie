@@ -46,7 +46,6 @@ bool prevPlaced = false;
 bool gotCup = false; // stays true after end effector switch has been triggered to avoid bugs if cup shifts and releases the switch
 bool state_setup_flag; // checks whether timer has been started
 bool flushed = false; // one time check to ensure tubes are filled with liquid
-bool rstNow; //if this is true a reset needs to happen and then it should get switched back as soon as that is done
 int goalNum = 0; // to track which state the main loop is in
 int prevGoal = 69; // to check if goalNum changed at end of each loop
 int moveNum = 0; // this is the index for which move in the goals array we are on
@@ -93,19 +92,6 @@ ros::Publisher placed("placed", &placed_msg);
 std_msgs::UInt16 status_msg;
 ros::Publisher status("status", &status_msg);
 
-/* "rst" topic */
-void rstCb(const std_msgs::Bool& rst_msg){
-  if (rst_msg.data == true){    
-    orderUp = false;
-    served = false;
-    isPlaced = false;
-    rstNow = true;
-  }
-}
-std_msgs::Bool rst_msg;
-ros::Publisher rst("rst", &rst_msg);
-ros::Subscriber<std_msgs::Bool> sub_rst("rst", rstCb);
-
 // TODO: Write flushed publish in the code
 
 /* "moveNum" topic */
@@ -128,20 +114,17 @@ void setup() {
   nh.initNode(); // start ROS node
   nh.advertise(placed); // tell ROS master that we will publish to the "placed" topic
   nh.advertise(status); // tell ROS master that we will publish to the "status" topic
-  nh.advertise(rst);
   nh.advertise(moveNum_pub);
   nh.subscribe(sub1); // subscribe to the "order" topic
   nh.subscribe(sub2); // subscribe to the "placed" topic
-  nh.subscribe(sub_rst);
   home();
   delay(1500); //wait 1.5 seconds to make sure servos are home
-  reset();
+  reset(); // just to be sure, set these back to initial values
 }// end void setup()
 
 
 
 void reset(){
-  rstNow = true;
   orderUp = false;
   gotCup = false;
   isPlaced = false;
@@ -175,13 +158,16 @@ void loop() {
     //
     if( goalNum == 0 ){ /* Initial Ready State with Arm at Home and No Order */
         // STATE CONTENT
-        smoothWrite(goals[moveNum]); // apply smoothing and write to servos to go home
-
         if(state_setup_flag){
             timeStamp = millis();
             state_setup_flag = false;
         }
+
+        smoothWrite(goals[moveNum]); // apply smoothing and write to servos to go home
+
+        // STATE TRANSITION
         if( millis() >= timeStamp + waitTime){
+            // once timeout passes, order up is the gate
             if( orderUp ){ // otherwise once order is in, move on to receive cup
                 goalNum = 2; // receive cup
                 moveNum = 1; // rx cup position
@@ -297,22 +283,18 @@ void loop() {
     // Final State
     //
     else if( goalNum == 6 ){ /* Final State */
-        //setup
-        if(state_setup_flag){                              // STATE CONTENT /* Do nothing for now*/
+
+        //state body
+        // do nothing
+
+        //state transition
+        if( !sw1State ) {
+            gotCup = false;
             timeStamp = millis();
-            state_setup_flag = false;
         }
-        //wait
-        if( millis() >= timeStamp + waitTime ){
-            if( !sw1State ) {
-              gotCup = false;
-            }
 
-            state_setup_flag = true;
-
-            if( !gotCup ){   // STATE TRANSITION: reset everything if we got a reset message from ROS
-                reset(); 
-            }
+        if( millis() >= timeStamp + waitTime && gotCup == false) {
+            reset();
         }
     }
 
@@ -336,11 +318,6 @@ void loop() {
         status_msg.data = goalNum;      // update actual ROS message variable
         status.publish( &status_msg );  // and publish it to the "status" topic
         prevGoal = goalNum;
-    }
-    if(isReset != rstNow){
-        rst_msg.data = rstNow;
-        rst.publish(&rst_msg);
-        isReset = rstNow;
     }
 
     moveNum_msg.data = moveNum;
