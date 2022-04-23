@@ -26,7 +26,8 @@ bool prevDone = false; //I think this was going to be an extra check for somethi
 // but I forgot lol -KB
 bool done = false; //are we done dispensing the drink?
 int drink = 0; //initialize drink variable
-bool reset = false;
+bool isReset = false;
+bool rstNow; //
 
 /* ROS Setup */
 ros::NodeHandle nh; //start a ROS node
@@ -56,9 +57,9 @@ ros::Publisher served("served", &srved_msg);
 
 /* "flushed" topic */
 void flushedCb(const std_msgs::Bool& flushed_msg){ // callback function for flushed subscriber
-  flushed = flushed_msg.data; // store the boolean received from teh placed topic
+  flushed = flushed_msg.data; // store the boolean received from the placed topic
   if (flushed) { //if message flushed is true and placed is true. Needs cup on platform for flush
-    delay(1000);
+    delay(500);
     flush();
     flushed = false;
 }
@@ -67,7 +68,16 @@ ros::Subscriber<std_msgs::Bool> sub_flushed("flushed", flushedCb);
 
 /* "rst" topic */ //MAY NEED TO BE MODIFIED. Copied format from leArm rst pub/sub
 void rstCb( const std_msgs::Bool& rst_msg){
-  reset = true;
+  if (rst_msg.data == true) {
+    //Reset variables
+    rstNow = true;
+    rst_msg.data = rstNow;
+    done = false;
+    placed = false;
+    served = false;
+    served_msg.data = served;
+    served.publish( &srved_msg );
+    rst.publish(&rst_msg); 
 }
 std_msgs::Bool rst_msg;
 ros::Publisher rst("rst", &rst_msg);
@@ -100,6 +110,12 @@ void setup() {
 void loop() { // main loop, runs forever while powered
   nh.spinOnce(); // start spinning for ROS
   delay(5);
+  
+  if (isReset != rstNow) {
+    rst_msg.data = rstNow;
+    rst.publish(&rst_msg);
+    isReset = rstNow;
+  }
 //  relayPulse(10000);
 //  digitalWrite(relay2,HIGH);
 //  delay(1000);
