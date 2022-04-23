@@ -28,6 +28,8 @@ bool done = false; //are we done dispensing the drink?
 int drink = 0; //initialize drink variable
 bool isReset = false;
 bool rstNow; //
+bool wasServed = false;
+bool prevServed = false;
 
 /* ROS Setup */
 ros::NodeHandle nh; //start a ROS node
@@ -53,7 +55,7 @@ ros::Subscriber<std_msgs::Bool> sub2("placed", placedCb); //create subscriber fo
 
 /* "served" topic */
 std_msgs::Bool srved_msg; 
-ros::Publisher served("served", &srved_msg);
+ros::Publisher served_pub("served", &srved_msg);
 
 /* "flushed" topic */
 void flushedCb(const std_msgs::Bool& flushed_msg){ // callback function for flushed subscriber
@@ -62,6 +64,7 @@ void flushedCb(const std_msgs::Bool& flushed_msg){ // callback function for flus
     delay(500);
     flush();
     flushed = false;
+  }
 }
 std_msgs::Bool flushed_msg;
 ros::Subscriber<std_msgs::Bool> sub_flushed("flushed", flushedCb);
@@ -71,16 +74,13 @@ void rstCb( const std_msgs::Bool& rst_msg){
   if (rst_msg.data == true) {
     //Reset variables
     rstNow = true;
-    rst_msg.data = rstNow;
     done = false;
     placed = false;
-    served = false;
-    served_msg.data = served;
-    served.publish( &srved_msg );
-    rst.publish(&rst_msg); 
+    wasServed = false;
+  }
 }
 std_msgs::Bool rst_msg;
-ros::Publisher rst("rst", &rst_msg);
+ros::Publisher pub_rst("rst", &rst_msg);
 ros::Subscriber<std_msgs::Bool> sub_rst("rst", rstCb);
 
 /* End ROS Setup */
@@ -99,8 +99,8 @@ void setup() {
   digitalWrite(relay3,HIGH); 
   digitalWrite(relay4,HIGH);
   nh.initNode(); // start Arduino ROS node
-  nh.advertise(served); // inform ROS master that "served" topic will be published to from this node
-  nh.advertise(rst);
+  nh.advertise(served_pub); // inform ROS master that "served" topic will be published to from this node
+  nh.advertise(pub_rst);
   nh.subscribe(sub_rst);
   nh.subscribe(sub_flushed);
   nh.subscribe(sub1); // subscribe to "order" topic
@@ -108,13 +108,17 @@ void setup() {
 } //end void setup()
 
 void loop() { // main loop, runs forever while powered
-  nh.spinOnce(); // start spinning for ROS
-  delay(5);
-  
+  prevServed = wasServed;
+
   if (isReset != rstNow) {
     rst_msg.data = rstNow;
-    rst.publish(&rst_msg);
+    pub_rst.publish(&rst_msg);
     isReset = rstNow;
+  }
+  
+  if (wasServed != prevServed){
+    srved_msg.data = wasServed;
+    served_pub.publish( &srved_msg );
   }
 //  relayPulse(10000);
 //  digitalWrite(relay2,HIGH);
@@ -123,6 +127,8 @@ void loop() { // main loop, runs forever while powered
 //  delay(2000);
 //  digitalWrite(relay2,HIGH);
 //  delay(100000000000);
+  nh.spinOnce(); // start spinning for ROS
+  delay(5);
 } //end void loop()
 
 void dispense(int drinkNum){ 
@@ -150,8 +156,9 @@ void dispense(int drinkNum){
     digitalWrite(relay3,HIGH);
     digitalWrite(relay4,HIGH);
     delay(200);
-    srved_msg.data = true; // update actual ROS message variable
-    served.publish( &srved_msg ); // publish to served topic
+    wasServed = true;
+//    srved_msg.data = true; // update actual ROS message variable
+//    served.publish( &srved_msg ); // publish to served topic
     //done = true;
   }
   else if(drinkNum == 2){
@@ -169,8 +176,9 @@ void dispense(int drinkNum){
     digitalWrite(relay3,HIGH);
     digitalWrite(relay4,HIGH);
     delay(200);
-    srved_msg.data = true; // update actual ROS message variable
-    served.publish( &srved_msg ); // publish to served topic
+    wasServed = true;
+//    srved_msg.data = true; // update actual ROS message variable
+//    served.publish( &srved_msg ); // publish to served topic
 //    done = true;
   }
   else if(drinkNum == 3){
@@ -188,8 +196,9 @@ void dispense(int drinkNum){
     digitalWrite(relay3,HIGH);
     digitalWrite(relay4,HIGH);
     delay(200);
-    srved_msg.data = true; // update actual ROS message variable
-    served.publish( &srved_msg ); // publish to served topic
+    wasServed = true;
+//    srved_msg.data = true; // update actual ROS message variable
+//    served.publish( &srved_msg ); // publish to served topic
 //    done = true;
   }
     else if(drinkNum == 4){
@@ -207,9 +216,10 @@ void dispense(int drinkNum){
     digitalWrite(relay3,HIGH);
     digitalWrite(relay4,HIGH);
     delay(200);
+    wasServed = true;
 //    done = true;
-    srved_msg.data = true; // update actual ROS message variable
-    served.publish( &srved_msg ); // publish to served topic
+//    srved_msg.data = true; // update actual ROS message variable
+//    served.publish( &srved_msg ); // publish to served topic
   }
     else if(drinkNum == 5){
     // Sweet Tea - RELAY 1
@@ -225,9 +235,10 @@ void dispense(int drinkNum){
     digitalWrite(relay3,HIGH);
     digitalWrite(relay4,HIGH);
     delay(200);
+    wasServed = true;
 //    done = true;
-    srved_msg.data = true; // update actual ROS message variable
-    served.publish( &srved_msg ); // publish to served topic
+//    srved_msg.data = true; // update actual ROS message variable
+//    served.publish( &srved_msg ); // publish to served topic
   }
     else if(drinkNum == 6){
     // REGULAR Tea - RELAY 2
@@ -243,9 +254,10 @@ void dispense(int drinkNum){
     digitalWrite(relay3,HIGH);
     digitalWrite(relay4,HIGH);
     delay(200);
+    wasServed = true;
 //    done = true;
-    srved_msg.data = true; // update actual ROS message variable
-    served.publish( &srved_msg ); // publish to served topic
+//    srved_msg.data = true; // update actual ROS message variable
+//    served.publish( &srved_msg ); // publish to served topic
   }
   else if(drinkNum == 7){
     // REGULAR LEMONADE - RELAY 3
@@ -261,9 +273,10 @@ void dispense(int drinkNum){
     digitalWrite(relay3,HIGH);
     digitalWrite(relay4,HIGH);
     delay(200);
+    wasServed = true;
 //    done = true;
-    srved_msg.data = true; // update actual ROS message variable
-    served.publish( &srved_msg ); // publish to served topic
+//    srved_msg.data = true; // update actual ROS message variable
+//    served.publish( &srved_msg ); // publish to served topic
   }
  else if(drinkNum == 8){
     // PINK LEMONADE - RELAY 4
@@ -279,9 +292,10 @@ void dispense(int drinkNum){
     digitalWrite(relay3,HIGH);
     digitalWrite(relay4,HIGH);
     delay(200);
+    wasServed = true;
 //    done = true;
-    srved_msg.data = true; // update actual ROS message variable
-    served.publish( &srved_msg ); // publish to served topic
+//    srved_msg.data = true; // update actual ROS message variable
+//    served.publish( &srved_msg ); // publish to served topic
   }
  else if(drinkNum == 9){
     // Half n Half Tea - RELAY 1, RELAY 2
@@ -298,9 +312,10 @@ void dispense(int drinkNum){
     digitalWrite(relay3,HIGH);
     digitalWrite(relay4,HIGH);
     delay(200);
+    wasServed = true;
 //    done = true;
-    srved_msg.data = true; // update actual ROS message variable
-    served.publish( &srved_msg ); // publish to served topic
+//    srved_msg.data = true; // update actual ROS message variable
+//    served.publish( &srved_msg ); // publish to served topic
   }
 else if(drinkNum == 10){
     // All the fixins - RELAY 1, RELAY 2, RELAY 3, RELAY 4
@@ -319,22 +334,23 @@ else if(drinkNum == 10){
     digitalWrite(relay3,HIGH);
     digitalWrite(relay4,HIGH);
     delay(200);
+    wasServed = true;
 //    done = true;
-    srved_msg.data = true; // update actual ROS message variable
-    served.publish( &srved_msg ); // publish to served topic
+//    srved_msg.data = true; // update actual ROS message variable
+//    served.publish( &srved_msg ); // publish to served topic
   }
   else{
-    srved_msg.data = false;// update actual ROS message variable
-    served.publish( &srved_msg ); // publish to served topic
+//    srved_msg.data = false;// update actual ROS message variable
+//    served.publish( &srved_msg ); // publish to served topic
 //    done = false;
+      wasServed = false;
   }
   // set servos back to closed no matter what at the end of the logic 
   // so they do not overheat or leak
   digitalWrite(relay1,HIGH); 
   digitalWrite(relay2,HIGH); 
   digitalWrite(relay3,HIGH);
-  digitalWrite(relay4,HIGH);
-  
+  digitalWrite(relay4,HIGH); 
 }
   
 void flush() {
@@ -347,7 +363,7 @@ void flush() {
   delay(flushtime);
   digitalWrite(relay3, LOW);
   delay(flushtime);
-  digitialWrite(relay4, LOW);
+  digitalWrite(relay4, LOW);
   delay(flushtime);
   digitalWrite(relay1, HIGH);
   digitalWrite(relay2, HIGH);
