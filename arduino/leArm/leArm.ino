@@ -100,9 +100,6 @@ ros::Publisher moveNum_pub("moveNum", &moveNum_msg);
 /* End ROS Setup */
 
 
-
-
-
 void setup() {
   pinMode(sw1, INPUT);
   pinMode(sw2, INPUT); //tell arduino the switches are inputs
@@ -119,7 +116,7 @@ void setup() {
   nh.subscribe(sub2); // subscribe to the "placed" topic
   home();
   delay(1500); //wait 1.5 seconds to make sure servos are home
-  reset(); // just to be sure, set these back to initial values
+  reset(); // just to be sure, set these back to initial values on startup
 }// end void setup()
 
 
@@ -131,7 +128,7 @@ void reset(){
   served = false;
   goalNum = 0;
   moveNum = 0;
-
+  state_setup_flag = true;
 }
 
 
@@ -180,14 +177,18 @@ void loop() {
     // Wait for Cup
     //
     else if( goalNum == 2 ){/* Wait For Cup */
-        smoothWrite(goals[moveNum]);
-        
+
+        // STATE CONTENT
+        smoothWrite(goals[moveNum]); // go to rx cup position
+
         //state transition
         if( gotCup ){ // STATE TRANSITION - cup detected, wait before moving
+
             if(state_setup_flag){
                 timeStamp = millis();
                 state_setup_flag = false;
             }
+
             if( millis() >= timeStamp + waitTime ){
                 goalNum = 3;
                 moveNum = 2;
@@ -208,7 +209,7 @@ void loop() {
         }
 
         // STATE BODY
-        if( millis() >= timeStamp + waitTime ){
+        if( millis() >= timeStamp + waitTime ) { //wait a move timeout
             if( !isPlaced && moveNum <=5 ){ //stop inc at best placed; maybe we have to manually push placed to finish
                 moveNum += 1;
             }
@@ -273,7 +274,7 @@ void loop() {
             }
             //wait
             if( millis() >= timeStamp + waitTime ){
-                goalNum = 6;
+                goalNum = 6; // go to final state
                 state_setup_flag = true;
             }
         }
@@ -290,10 +291,13 @@ void loop() {
         //state transition
         if( !sw1State ) {
             gotCup = false;
-            timeStamp = millis();
+            if( state_setup_flag ){
+                timeStamp = millis();
+                state_setup_flag = false;
+            }
         }
 
-        if( millis() >= timeStamp + waitTime && gotCup == false) {
+        if( millis() >= timeStamp + waitTime ) {
             reset();
         }
     }
