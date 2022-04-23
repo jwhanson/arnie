@@ -20,12 +20,14 @@
 #define relay2 5 //arduino digital pin
 #define relay3 6 //arduino digital pin
 #define relay4 7 //arduino digital pin
+bool flushed = false; //should the system flush
 bool placed = false; //is the cup on the platform?
 bool prevDone = false; //I think this was going to be an extra check for something
 // but I forgot lol -KB
 bool done = false; //are we done dispensing the drink?
 int drink = 0; //initialize drink variable
-bool reset = false;
+bool isReset = false;
+bool rstNow; //
 
 /* ROS Setup */
 ros::NodeHandle nh; //start a ROS node
@@ -54,10 +56,28 @@ std_msgs::Bool srved_msg;
 ros::Publisher served("served", &srved_msg);
 
 /* "flushed" topic */
+void flushedCb(const std_msgs::Bool& flushed_msg){ // callback function for flushed subscriber
+  flushed = flushed_msg.data; // store the boolean received from the placed topic
+  if (flushed) { //if message flushed is true and placed is true. Needs cup on platform for flush
+    delay(500);
+    flush();
+    flushed = false;
+}
+std_msgs::Bool flushed_msg;
+ros::Subscriber<std_msgs::Bool> sub_flushed("flushed", flushedCb);
 
 /* "rst" topic */ //MAY NEED TO BE MODIFIED. Copied format from leArm rst pub/sub
 void rstCb( const std_msgs::Bool& rst_msg){
-  reset = true;
+  if (rst_msg.data == true) {
+    //Reset variables
+    rstNow = true;
+    rst_msg.data = rstNow;
+    done = false;
+    placed = false;
+    served = false;
+    served_msg.data = served;
+    served.publish( &srved_msg );
+    rst.publish(&rst_msg); 
 }
 std_msgs::Bool rst_msg;
 ros::Publisher rst("rst", &rst_msg);
@@ -82,6 +102,7 @@ void setup() {
   nh.advertise(served); // inform ROS master that "served" topic will be published to from this node
   nh.advertise(rst);
   nh.subscribe(sub_rst);
+  nh.subscribe(sub_flushed);
   nh.subscribe(sub1); // subscribe to "order" topic
   nh.subscribe(sub2); // subscribe to "placed" topic
 } //end void setup()
@@ -89,6 +110,12 @@ void setup() {
 void loop() { // main loop, runs forever while powered
   nh.spinOnce(); // start spinning for ROS
   delay(5);
+  
+  if (isReset != rstNow) {
+    rst_msg.data = rstNow;
+    rst.publish(&rst_msg);
+    isReset = rstNow;
+  }
 //  relayPulse(10000);
 //  digitalWrite(relay2,HIGH);
 //  delay(1000);
@@ -308,6 +335,25 @@ else if(drinkNum == 10){
   digitalWrite(relay3,HIGH);
   digitalWrite(relay4,HIGH);
   
+}
+  
+void flush() {
+  // Run the flush sequence. Flush each valve for flushtime
+  // Close off valves at end by turning relays HIGH
+  int flushtime = 4000;
+  digitalWrite(relay1, LOW);
+  delay(flushtime);
+  digitalWrite(relay2, LOW);
+  delay(flushtime);
+  digitalWrite(relay3, LOW);
+  delay(flushtime);
+  digitialWrite(relay4, LOW);
+  delay(flushtime);
+  digitalWrite(relay1, HIGH);
+  digitalWrite(relay2, HIGH);
+  digitalWrite(relay3, HIGH);
+  digitalWrite(relay4, HIGH);
+  delay(200);
 }
 
 void relayPulse(int wait){
