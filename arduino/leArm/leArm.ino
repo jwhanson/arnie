@@ -59,7 +59,8 @@ int goals[][3] = { {90,   90,   60}, //0
                    {180,  20,   177}, //4
                    {180,  37,   177}, //5
                    {180,  80,   180}, //6
-                   {0,    50,   140}  }; //7
+                   {90,   120,  135}, //7
+                   {0,    50,   140}  }; //8
 /* End State and Timing Variables */
 
 /* ROS Setup */
@@ -104,7 +105,7 @@ void flushedCb(const std_msgs::Bool& flushed_msg) {
     flushed = true;
   }
 }
-std_msgs::Bool flushed_msg
+std_msgs::Bool flushed_msg;
 ros::Publisher flushed_pub("flushed", &flushed_msg);
 ros::Subscriber<std_msgs::Bool> flushed_sub("flushed", flushedCb);
 // TODO: Write flushed publish in the code
@@ -119,6 +120,7 @@ ros::Publisher moveNum_pub("moveNum", &moveNum_msg);
 
 
 void setup() {
+
   pinMode(sw1, INPUT); pinMode(sw2, INPUT); //tell arduino the switches are inputs
   pinMode(LED_BUILTIN,OUTPUT); // for debug
   servo0.attach(servo0pin); servo1.attach(servo1pin); servo2.attach(servo2pin); servo3.attach(servo3pin);
@@ -232,15 +234,14 @@ void loop() {
     else if( goalNum == 4){ /* Cup Hold On Plate */
                                       // STATE CONTENT /* Do Nothing for Now */
         if( served ){ // STATE TRANSITION
-          if(state_setup_flag){
-            timeStamp = millis();
-            state_setup_flag = false;
-          }
-          if( millis() >= timeStamp + waitTime ){
-            goalNum = 5;
-            state_setup_flag = true;
-          }
-          
+            if(state_setup_flag){
+                timeStamp = millis();
+                state_setup_flag = false;
+            }
+            if( millis() >= timeStamp + waitTime ){
+                goalNum = 5;
+                state_setup_flag = true;
+            }
         }    
     }
     else if( goalNum == 5 ){ /* Move Cup Back to User */  
@@ -249,12 +250,12 @@ void loop() {
             state_setup_flag = false;   // now the flag is false, so we will not begin counting until the next step in the sequence.
         }
         if( millis() >= timeStamp + waitTime ){ //step forward in goal array for next movement
-            if(moveNum < 7){ moveNum += 1; }
-            else{ moveNum = 7; }
+            if( moveNum < (sizeof(goals)/sizeof(goals[0])) - 1 ){ moveNum += 1; }
+            else{ moveNum = (sizeof(goals)/sizeof(goals[0])) - 1; }
             state_setup_flag = true;
         }
         smoothWrite(goals[moveNum]);  // write the smoothed values to the servo
-        if( moveNum == 7 ){ // STATE TRANSITION
+        if( moveNum == (sizeof(goals)/sizeof(goals[0])) - 1 ){ // STATE TRANSITION
             if( state_setup_flag ){
                 timeStamp = millis();
                 state_setup_flag = false;
