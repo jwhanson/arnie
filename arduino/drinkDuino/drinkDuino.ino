@@ -25,7 +25,6 @@ bool prevDone = false; //I think this was going to be an extra check for somethi
 // but I forgot lol -KB
 bool done = false; //are we done dispensing the drink?
 int drink = 0; //initialize drink variable
-bool reset = false;
 
 /* ROS Setup */
 ros::NodeHandle nh; //start a ROS node
@@ -53,16 +52,6 @@ ros::Subscriber<std_msgs::Bool> sub2("placed", placedCb); //create subscriber fo
 std_msgs::Bool srved_msg; 
 ros::Publisher served("served", &srved_msg);
 
-/* "flushed" topic */
-
-/* "rst" topic */ //MAY NEED TO BE MODIFIED. Copied format from leArm rst pub/sub
-void rstCb( const std_msgs::Bool& rst_msg){
-  reset = true;
-}
-std_msgs::Bool rst_msg;
-ros::Publisher rst("rst", &rst_msg);
-ros::Subscriber<std_msgs::Bool> sub_rst("rst", rstCb);
-
 /* End ROS Setup */
 
 void setup() {
@@ -80,8 +69,6 @@ void setup() {
   digitalWrite(relay4,HIGH);
   nh.initNode(); // start Arduino ROS node
   nh.advertise(served); // inform ROS master that "served" topic will be published to from this node
-  nh.advertise(rst);
-  nh.subscribe(sub_rst);
   nh.subscribe(sub1); // subscribe to "order" topic
   nh.subscribe(sub2); // subscribe to "placed" topic
 } //end void setup()
